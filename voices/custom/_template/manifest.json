@@ -1,0 +1,16 @@
+{
+  "id": "voice_name",
+  "display_name": "Voice Owner Name",
+  "provider": "recorded",
+  "status": "collecting_samples",
+  "consent": {
+    "owner": "Full legal name of voice owner",
+    "permission_granted": false,
+    "granted_date": null,
+    "notes": "Describe who gave permission and for what use."
+  },
+  "samples_dir": "voices/custom/voice_name/samples",
+  "min_samples_seconds": 60,
+  "target_provider": "elevenlabs_clone",
+  "elevenlabs_voice_id": null
+}

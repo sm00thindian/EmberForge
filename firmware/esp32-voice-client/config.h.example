@@ -1,0 +1,28 @@
+#pragma once
+
+// Copy to config.h and fill in your network + backend details.
+
+#define WIFI_SSID "your_wifi_name"
+#define WIFI_PASSWORD "your_wifi_password"
+
+// EmberForge backend on your LAN (Mac, mini-PC, or home hub)
+#define EMBER_HOST "192.168.1.100"
+#define EMBER_PORT 8000
+#define EMBER_BASE_URL "http://192.168.1.100:8000"
+
+// Optional — set if EMBER_DEVICE_TOKEN is configured on the backend
+// #define EMBER_DEVICE_TOKEN "your_device_token"
+
+// Default persona (must match personas/*.json id)
+#define EMBER_DEFAULT_PERSONA "ember"
+
+// Unique id for this physical device (any string you choose)
+#define EMBER_DEVICE_ID "emberforge-001"
+
+// Push-to-talk GPIO (adjust for your board)
+#define BUTTON_PIN 0
+
+// I2S mic / speaker pins — configure for your audio board
+#define I2S_MIC_WS_PIN 15
+#define I2S_MIC_SCK_PIN 14
+#define I2S_MIC_SD_PIN 32

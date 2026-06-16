@@ -1,0 +1,13 @@
+{
+  "id": "ember",
+  "name": "Ember",
+  "tagline": "Warm digital ember — practical wisdom and creative spark",
+  "prompt_file": "prompts/ember_agent_prompt.md",
+  "voice": {
+    "provider": "macos_say",
+    "voice": "Shelley (English (US))",
+    "rate": 155
+  },
+  "temperature": 0.75,
+  "type": "companion"
+}

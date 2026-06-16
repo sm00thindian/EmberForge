@@ -1,5 +1,5 @@
-fastapi
-uvicorn[standard]
-pydantic
-httpx
-python-multipart
+# Deprecated — use pyproject.toml at the project root:
+#
+#   pip install -e ".[dev,mac]"
+#
+# This file is kept for reference only.

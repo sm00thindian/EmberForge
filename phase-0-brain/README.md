@@ -1,90 +1,85 @@
-# Phase 0: EmberForge Digital Brain (Mac-first)
+# Phase 0: Mac Voice Companion
 
-**Goal**: Build and run the intelligent "brain" of EmberForge on your Mac before building any hardware. This lets us iterate quickly on personality, creative capabilities, and voice interaction.
+Talk to EmberForge on your Mac with local Whisper listening and swappable personas.
 
-## What We Built
-
-- Strong core **Ember** system prompt (warm digital ember personality + music + maker wisdom)
-- FastAPI backend with `/chat` endpoint ready for Grok
-- Simple Mac voice companion script that listens to your system microphone
-- Clean project structure inside your Google Drive
-
-## Folder Structure (in your Drive)
-
-```
-EmberForge_Companion/
-├── phase-0-brain/
-│   └── README.md (this file)
-├── backend/
-│   ├── main.py
-│   └── requirements.txt
-├── prompts/
-│   └── ember_agent_prompt.md
-└── mac_voice_companion.py
-```
-
-## Quick Start on Your Mac
-
-### 1. Set up the backend
+## Quick Start
 
 ```bash
-cd backend
-
-# Create virtual environment (recommended)
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Set your xAI / Grok API key
-export GROK_API_KEY="your_actual_key_here"
-
-# Run the backend
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+./start_ember.sh                  # Interactive setup + Ember (default)
+./start_ember.sh --persona hal_9000
+./start_ember.sh --text-only      # Backend only (no microphone)
 ```
 
-The backend will be available at `http://localhost:8000`
+Requires `XAI_API_KEY` in `.env` or your shell. The start script can prompt for it on first run.
 
-Test it quickly:
+## During a Session
+
+| Command | Action |
+|---------|--------|
+| ENTER | Start listening |
+| `persona hal_9000` | Switch to HAL |
+| `persona ember` | Switch back to Ember |
+| `personas` | List available personas |
+| `quit` | Exit |
+
+## Personas
+
+Personas combine a **system prompt** (personality) and a **voice profile** (how it sounds).
+
+| ID | Voice (macOS `say`) |
+|----|---------------------|
+| `ember` | Shelley (English US), rate 155 |
+| `hal_9000` | Daniel (UK), rate 145 |
+
+Add more in `personas/*.json` + `prompts/personas/*.md`.
+
+## Mac TTS Modes
+
+Set in `.env`:
+
+| `EMBER_MAC_TTS` | Behavior |
+|-----------------|----------|
+| `macos_say` | Default — free, uses system voices |
+| `elevenlabs` | ElevenLabs MP3 playback (requires API key + voice ID) |
+| `auto` | ElevenLabs when configured, otherwise `say` |
+
+## Record a Custom Voice
+
+For cloning with permission:
+
 ```bash
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Hello Ember, tell me about yourself."}'
+source ../.venv/bin/activate
+python ../scripts/record_voice_sample.py --name kilynn
 ```
 
-### 2. Talk to Ember with your voice (Mac microphone)
+See [`voices/README.md`](../voices/README.md) for the full voice pipeline.
 
-In a new terminal:
+## Config (`.env`)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `XAI_API_KEY` | — | **Required** — xAI / Grok |
+| `EMBER_PERSONA` | `ember` | Starting persona |
+| `EMBER_MAC_TTS` | `macos_say` | Mac playback engine |
+| `EMBER_WHISPER_MODEL` | `base` | Whisper model size |
+| `EMBER_BACKEND_PORT` | `8000` | Backend port |
+| `ELEVENLABS_API_KEY` | — | Optional server/Mac TTS |
+| `ELEVENLABS_DEFAULT_VOICE_ID` | — | ElevenLabs voice for fallback |
+| `EMBER_INPUT_DEVICE` | (default) | Mic index or name |
+
+## Manual Two-Terminal Setup
 
 ```bash
-cd ..   # back to project root
+source .venv/bin/activate
+pip install -e ".[dev,mac]"
+emberforge serve --host 127.0.0.1 --port 8000
 
-python3 mac_voice_companion.py
+# new terminal
+cd phase-0-brain && EMBER_PERSONA=hal_9000 python mac_voice_companion.py
 ```
 
-- Press ENTER to start listening
-- Speak clearly
-- Ember will respond both in text and using your Mac's built-in voice
-
-This gives you a working voice companion on your Mac today.
-
-## Next Milestones (Phase 0 continuation)
-
-1. **Improve STT quality** — Switch from Google STT to local Whisper (much better for creative work)
-2. **Add TTS options** — ElevenLabs or local Piper / Coqui for higher quality voice
-3. **Create specialized agents** — Music/Lyric Co-writer, Practical Maker, Personal Knowledge
-4. **Add simple RAG** — Let Ember read your notes, song themes, or previous lyrics from files in the Drive
-
-## Notes
-
-- The current voice script uses free Google STT + macOS `say`. It works well for testing.
-- All prompts live in the `prompts/` folder so they are easy to version and edit.
-- The backend is designed so the future ESP32 hardware can call the exact same `/chat` endpoint.
-
-This is the foundation. Once you're comfortable talking to Ember on your Mac, we can harden the voice pipeline and then move to hardware.
+See [`docs/RELEASE_1.0.md`](../docs/RELEASE_1.0.md) for the full 1.0 roadmap and [`CHANGELOG.md`](../CHANGELOG.md) for release notes.
 
 ---
 
-**Status**: Phase 0 foundation complete and running on Mac.  
-Ready for voice improvements or specialized agents when you are.
+**Status:** Mac voice companion with persona switching, improved macOS voices, and optional ElevenLabs playback path.
