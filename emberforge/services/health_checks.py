@@ -7,7 +7,7 @@ from typing import Any
 
 import httpx
 
-from emberforge.services.llm import llm_models_probe_url
+from emberforge.services.llm import llm_models_probe_url, resolve_llm_config
 from emberforge.services.personas import load_personas
 from emberforge.services.voice.registry import get_stt_provider
 from emberforge.settings import Settings
@@ -19,20 +19,35 @@ def _component(status: str, **extra: Any) -> dict[str, Any]:
     return payload
 
 
-async def check_xai(settings: Settings) -> dict[str, Any]:
-    if not settings.resolved_llm_api_key:
-        return _component("fail", message="LLM API key is not configured")
+async def check_llm(settings: Settings) -> dict[str, Any]:
+    llm = resolve_llm_config(settings=settings)
+    if not llm.api_key:
+        return _component(
+            "fail",
+            message="LLM API key is not configured",
+            provider=llm.provider,
+        )
 
-    url = llm_models_probe_url(settings.llm_api_url)
-    headers = {"Authorization": f"Bearer {settings.resolved_llm_api_key}"}
+    url = llm_models_probe_url(llm.api_url)
+    headers = {"Authorization": f"Bearer {llm.api_key}"}
 
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(url, headers=headers)
     except httpx.TimeoutException:
-        return _component("fail", message="LLM request timed out", reachable=False)
+        return _component(
+            "fail",
+            message="LLM request timed out",
+            reachable=False,
+            provider=llm.provider,
+        )
     except httpx.TransportError as exc:
-        return _component("fail", message=str(exc), reachable=False)
+        return _component(
+            "fail",
+            message=str(exc),
+            reachable=False,
+            provider=llm.provider,
+        )
 
     reachable = True
     if response.status_code == 401:
@@ -40,32 +55,41 @@ async def check_xai(settings: Settings) -> dict[str, Any]:
             "fail",
             message="LLM API key rejected",
             reachable=True,
-            model=settings.llm_model,
-            api_url=settings.llm_api_url,
+            model=llm.model,
+            api_url=llm.api_url,
+            provider=llm.provider,
         )
     if response.status_code >= 500:
         return _component(
             "degraded",
             message=f"LLM returned HTTP {response.status_code}",
             reachable=True,
-            model=settings.llm_model,
-            api_url=settings.llm_api_url,
+            model=llm.model,
+            api_url=llm.api_url,
+            provider=llm.provider,
         )
     if response.status_code >= 400:
         return _component(
             "ok",
             message=f"LLM reachable (HTTP {response.status_code})",
             reachable=True,
-            model=settings.llm_model,
-            api_url=settings.llm_api_url,
+            model=llm.model,
+            api_url=llm.api_url,
+            provider=llm.provider,
         )
 
     return _component(
         "ok",
         reachable=reachable,
-        model=settings.llm_model,
-        api_url=settings.llm_api_url,
+        model=llm.model,
+        api_url=llm.api_url,
+        provider=llm.provider,
     )
+
+
+async def check_xai(settings: Settings) -> dict[str, Any]:
+    """Backward-compatible alias for :func:`check_llm`."""
+    return await check_llm(settings)
 
 
 def check_whisper(settings: Settings) -> dict[str, Any]:
@@ -144,8 +168,10 @@ def aggregate_status(components: dict[str, dict[str, Any]]) -> str:
 
 
 async def run_readiness_checks(settings: Settings) -> dict[str, Any]:
+    llm_report = await check_llm(settings)
     components = {
-        "xai": await check_xai(settings),
+        "llm": llm_report,
+        "xai": llm_report,
         "whisper": check_whisper(settings),
         "disk": check_disk(settings),
         "personas": check_personas(settings),

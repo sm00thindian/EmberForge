@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -9,7 +11,12 @@ from fastapi.responses import FileResponse
 
 from emberforge import __version__
 from emberforge.api.exceptions import register_exception_handlers
-from emberforge.api.middleware import RateLimitMiddleware, RequestIDMiddleware, configure_security_logging
+from emberforge.api.middleware import (
+    ObservabilityMiddleware,
+    RateLimitMiddleware,
+    RequestIDMiddleware,
+    configure_security_logging,
+)
 from emberforge.api.routes import admin, chat, device, health, setup
 from emberforge.services.converse import ConverseService
 from emberforge.services.personas import load_personas
@@ -56,9 +63,23 @@ def _mount_setup_ui(app: FastAPI) -> None:
 def configure_app(app: FastAPI) -> None:
     """Attach cross-cutting middleware and exception handlers."""
     configure_security_logging()
+    app.add_middleware(ObservabilityMiddleware)
     app.add_middleware(RateLimitMiddleware)
     app.add_middleware(RequestIDMiddleware)
     register_exception_handlers(app)
+
+
+@asynccontextmanager
+async def _app_lifespan(app: FastAPI):
+    logger = logging.getLogger("emberforge")
+    logger.info("emberforge_startup version=%s", __version__)
+    try:
+        yield
+    finally:
+        from emberforge.security.runtime import reset_security_state
+
+        reset_security_state()
+        logger.info("emberforge_shutdown complete")
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -71,6 +92,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         title="EmberForge Voice Companion",
         description="Persona-driven AI voice companion for Mac and consumer devices.",
         version=__version__,
+        lifespan=_app_lifespan,
     )
 
     device_pair_router, device_meta_router, device_audio_router = device.create_device_routers(

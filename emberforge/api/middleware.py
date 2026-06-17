@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -10,6 +11,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from emberforge.context import get_request_id, set_request_id
+from emberforge.observability.timing import get_request_timing, reset_request_timing
 from emberforge.errors import rate_limited
 from emberforge.security.rate_limit import get_rate_limiter, rate_limit_key
 from emberforge.security.redaction import SecretRedactionFilter
@@ -35,6 +37,41 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
+        return response
+
+
+class ObservabilityMiddleware(BaseHTTPMiddleware):
+    """Log request duration and pipeline phase timings (STT / LLM / TTS)."""
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        reset_request_timing()
+        started = time.perf_counter()
+        response = await call_next(request)
+        duration_ms = round((time.perf_counter() - started) * 1000, 2)
+        timing = get_request_timing()
+        timing_payload = timing.to_dict() if timing else {}
+
+        logger = logging.getLogger("emberforge.http")
+        logger.info(
+            "%s %s %s %.2fms",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+            extra={
+                "event": "http_request",
+                "request_id": get_request_id(),
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": response.status_code,
+                "duration_ms": duration_ms,
+                "timing": timing_payload,
+            },
+        )
+        if timing_payload:
+            response.headers["X-Timing-Total-Ms"] = str(duration_ms)
+            for key, value in timing_payload.items():
+                response.headers[f"X-Timing-{key.replace('_ms', '').title()}-Ms"] = str(value)
         return response
 
 

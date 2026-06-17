@@ -28,7 +28,7 @@ emberforge/
 ├── cli.py               # emberforge serve | check
 ├── services/
 │   ├── personas.py      # Persona registry
-│   ├── conversation.py  # Grok/xAI conversation engine
+│   ├── conversation.py  # Grok / Claude conversation engine
 │   └── stt.py           # Server-side Whisper (device uploads)
 └── api/
     ├── app.py           # FastAPI factory
@@ -103,20 +103,26 @@ emberforge/
 - [x] On-demand LLM tools (`get_weather`, `get_headlines`, `search_news`)
 - [x] Local setup website (`emberforge/web/`, `/setup/v1/*`)
 
-### M8 — Observability
+### M8 — Observability ✅
 
-- [ ] Structured JSON logging
-- [ ] Per-request timing (STT / LLM / TTS ms)
+- [x] Structured JSON logging (`EMBER_LOG_JSON=true`, `emberforge/observability/logging.py`)
+- [x] Per-request timing (STT / LLM / TTS ms via `ObservabilityMiddleware`, `X-Timing-*` headers)
 
-### M9 — Packaging & Deploy
+### M9 — Packaging & Deploy ✅
 
-- [ ] Dockerfile + docker-compose
-- [ ] launchd plist or systemd unit
-- [ ] Graceful shutdown
+- [x] Dockerfile + docker-compose
+- [x] launchd plist or systemd unit (`deploy/emberforge.plist`, `deploy/emberforge.service`)
+- [x] Graceful shutdown (FastAPI lifespan + uvicorn SIGTERM drain)
 
-### 1.0 Release Gate
+### LLM provider switch (v1.0.0) ✅
 
-M1–M7 complete, M3 contract tests complete, device API stable, Mac voice loop works end-to-end (**Phase 0 complete** — see [`PHASE_0.md`](PHASE_0.md)). Remaining Release 1.0 gate: M8–M9 (observability, packaging).
+- [x] `EMBER_LLM_PROVIDER=grok` (default) or `claude`
+- [x] Claude via Anthropic OpenAI-compatible API (`ANTHROPIC_API_KEY`, default model `claude-sonnet-4-6`)
+- [x] Setup UI provider dropdown
+
+### 1.0 Release Gate ✅
+
+M1–M9 complete, M3 contract tests complete, device API stable, Mac voice loop works end-to-end (**Phase 0 complete** — see [`PHASE_0.md`](PHASE_0.md)). **Release 1.0 shipped as package version `1.0.0`.**
 
 ---
 
@@ -174,9 +180,12 @@ curl -X POST http://127.0.0.1:8000/device/v1/converse/text \
 |----------|---------|-------------|
 | `XAI_API_KEY` | — | LLM API key (**required** for default xAI / Grok) |
 | `GROK_API_KEY` | — | Legacy alias for `XAI_API_KEY` |
-| `EMBER_LLM_MODEL` | `grok-3-latest` | LLM model id |
-| `EMBER_LLM_API_URL` | `https://api.x.ai/v1/chat/completions` | OpenAI-compatible chat endpoint |
-| `EMBER_LLM_API_KEY` | — | Optional separate LLM key (falls back to `XAI_API_KEY`) |
+| `EMBER_LLM_PROVIDER` | `grok` | `grok` or `claude` |
+| `ANTHROPIC_API_KEY` | — | Required when `EMBER_LLM_PROVIDER=claude` |
+| `EMBER_LLM_MODEL` | `grok-3-latest` | LLM model id (`claude-sonnet-4-6` when provider is Claude) |
+| `EMBER_LLM_API_URL` | provider default | OpenAI-compatible chat endpoint |
+| `EMBER_LLM_API_KEY` | — | Optional separate LLM key (falls back to provider key) |
+| `EMBER_LOG_JSON` | `false` | Emit structured JSON logs (recommended in production) |
 | `EMBER_HOST` | `127.0.0.1` | Server bind host |
 | `EMBER_BACKEND_PORT` | `8000` | Server bind port |
 | `EMBER_WHISPER_MODEL` | `base` | Server-side Whisper model |
@@ -241,7 +250,7 @@ Device contract documentation: `device/README.md`
 
 ## Versioning Policy
 
-- **Server package:** semver in `emberforge/__init__.py` (currently `0.2.0`, targeting `1.0.0`)
+- **Server package:** semver in `emberforge/__init__.py` (currently `1.0.0`)
 - **Device API:** `/device/v1/` — breaking changes require `/device/v2/`
 - Devices should call `/version` and `/device/v1/capabilities` on boot
 
@@ -251,12 +260,14 @@ Device contract documentation: `device/README.md`
 
 | Component | Version |
 |-----------|---------|
-| Package | `0.2.0` |
+| Package | `1.0.0` |
 | Device API | `v1` |
-| Milestones complete | M1–M7 (incl. M3 device contract tests) |
+| Milestones complete | M1–M9 (incl. M3 device contract tests) |
 | Phase 0 (Mac companion) | ✅ Complete — [`PHASE_0.md`](PHASE_0.md) |
 | Local setup UI | ✅ `/setup` |
+| LLM providers | Grok (default), Claude |
+| Deploy | Docker, launchd, systemd — [`deploy/README.md`](../deploy/README.md) |
 
 **Changelog:** [`CHANGELOG.md`](../CHANGELOG.md) (Keep a Changelog format)
 
-**Next step:** M8 observability (structured JSON logging, per-request timing).
+**Release 1.0 complete.** Next work: consumer device firmware and hub hardening beyond 1.0.

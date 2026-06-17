@@ -11,6 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - (nothing yet)
 
+## [1.0.0] - 2026-06-17
+
+### Added
+
+- **Claude LLM provider** — set `EMBER_LLM_PROVIDER=claude` and `ANTHROPIC_API_KEY`; Grok remains the default (`grok`)
+- Setup UI provider dropdown (Grok / Claude) with model hints
+- **M8 observability** — structured JSON logging (`EMBER_LOG_JSON=true`), per-request `http_request` events with STT / LLM / TTS phase timings (`X-Timing-*` response headers)
+- **M9 packaging** — `Dockerfile`, `docker-compose.yml`, macOS launchd plist (`deploy/emberforge.plist`), Linux systemd unit (`deploy/emberforge.service`), graceful shutdown via FastAPI lifespan
+- `emberforge/observability/` package (`configure_logging`, `RequestTiming`, `measure_phase`)
+- Deploy guide: [`deploy/README.md`](deploy/README.md)
+
+### Changed
+
+- Release 1.0 gate complete (M1–M9); package version **1.0.0**
+- `/health/ready` reports `llm` component (legacy `xai` alias retained)
+- `emberforge check` prints `llm_provider` and `log_json`
+
 ## [0.2.0] - 2026-06-17
 
 ### Added
@@ -80,6 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial repository scaffolding and project vision documentation
 
-[Unreleased]: https://github.com/sm00thindian/EmberForge/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/sm00thindian/EmberForge/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/sm00thindian/EmberForge/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/sm00thindian/EmberForge/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/sm00thindian/EmberForge/releases/tag/v0.1.0

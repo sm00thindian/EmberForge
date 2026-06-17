@@ -8,6 +8,7 @@ import httpx
 
 from emberforge.errors import llm_error
 from emberforge.http.retry import is_retryable_status, post_with_retry
+from emberforge.services.llm import LlmConfig
 from emberforge.services.tools import ToolService
 from emberforge.settings import Settings
 
@@ -19,8 +20,8 @@ def _extract_message(data: dict[str, Any]) -> dict[str, Any]:
 async def complete_with_tools(
     *,
     settings: Settings,
+    llm_config: LlmConfig,
     messages: list[dict[str, Any]],
-    model: str,
     temperature: float,
     tool_service: ToolService,
     request_id: str,
@@ -30,7 +31,7 @@ async def complete_with_tools(
     or max rounds are exhausted.
     """
     headers = {
-        "Authorization": f"Bearer {settings.resolved_llm_api_key}",
+        "Authorization": f"Bearer {llm_config.api_key}",
         "Content-Type": "application/json",
     }
     tools = tool_service.definitions
@@ -40,7 +41,7 @@ async def complete_with_tools(
     async with httpx.AsyncClient(timeout=settings.xai_timeout_seconds) as client:
         for _ in range(max_rounds):
             payload: dict[str, Any] = {
-                "model": model,
+                "model": llm_config.model,
                 "messages": working_messages,
                 "temperature": temperature,
                 "max_tokens": settings.xai_max_tokens,
@@ -52,7 +53,7 @@ async def complete_with_tools(
             try:
                 response = await post_with_retry(
                     client,
-                    settings.llm_api_url,
+                    llm_config.api_url,
                     max_retries=settings.xai_max_retries,
                     base_delay_seconds=settings.xai_retry_base_seconds,
                     json=payload,

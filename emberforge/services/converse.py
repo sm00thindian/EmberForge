@@ -11,6 +11,7 @@ from emberforge.errors import (
     stt_no_speech,
     stt_unavailable,
 )
+from emberforge.observability.timing import measure_phase
 from emberforge.services.context import ContextService
 from emberforge.services.tools import ToolService
 from emberforge.services.conversation import ConversationResult, generate_reply
@@ -119,7 +120,8 @@ class ConverseService:
         resolved_request_id = ensure_request_id(request_id)
 
         try:
-            transcript = self.stt.transcribe_wav(audio_bytes)
+            with measure_phase("stt"):
+                transcript = self.stt.transcribe_wav(audio_bytes)
         except ValueError as exc:
             message = str(exc)
             if "No speech detected" in message:
@@ -153,16 +155,17 @@ class ConverseService:
         synthesize_audio: bool,
         play_audio: bool,
     ) -> ConversationResult:
-        tts_result = TTSResult.from_voice_config(persona.voice)
+        with measure_phase("tts"):
+            tts_result = TTSResult.from_voice_config(persona.voice)
 
-        if synthesize_audio:
-            tts, voice_config = get_device_tts_provider(persona.voice, self.settings)
-            if tts.produces_audio():
-                tts_result = await tts.synthesize(result.response_text, voice_config)
+            if synthesize_audio:
+                tts, voice_config = get_device_tts_provider(persona.voice, self.settings)
+                if tts.produces_audio():
+                    tts_result = await tts.synthesize(result.response_text, voice_config)
 
-        if play_audio and not tts_result.audio_bytes:
-            tts = get_tts_provider(persona.voice, self.settings)
-            tts_result = await tts.synthesize(result.response_text, persona.voice)
+            if play_audio and not tts_result.audio_bytes:
+                tts = get_tts_provider(persona.voice, self.settings)
+                tts_result = await tts.synthesize(result.response_text, persona.voice)
 
         return replace(result, voice=tts_result.to_voice_dict())
 

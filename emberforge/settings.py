@@ -23,8 +23,13 @@ class Settings(BaseSettings):
     # API keys
     xai_api_key: str = Field(default="", validation_alias="XAI_API_KEY")
     grok_api_key: str = Field(default="", validation_alias="GROK_API_KEY")
+    anthropic_api_key: str = Field(default="", validation_alias="ANTHROPIC_API_KEY")
 
     # LLM (OpenAI-compatible chat completions — defaults to xAI / Grok)
+    llm_provider: str = Field(
+        default="grok",
+        validation_alias=AliasChoices("EMBER_LLM_PROVIDER", "EMBER_LLM_BACKEND"),
+    )
     llm_model: str = Field(
         default="grok-3-latest",
         validation_alias=AliasChoices("EMBER_LLM_MODEL", "XAI_MODEL", "GROK_MODEL"),
@@ -43,6 +48,7 @@ class Settings(BaseSettings):
     host: str = Field(default="127.0.0.1", validation_alias="EMBER_HOST")
     port: int = Field(default=8000, validation_alias="EMBER_BACKEND_PORT")
     log_level: str = "INFO"
+    log_json: bool = Field(default=False, validation_alias="EMBER_LOG_JSON")
 
     # Speech-to-text (server-side, for device uploads)
     whisper_model: str = Field(default="base", validation_alias="EMBER_WHISPER_MODEL")
@@ -149,6 +155,11 @@ class Settings(BaseSettings):
 
     @property
     def resolved_llm_api_key(self) -> str:
+        from emberforge.services.llm import CLAUDE_PROVIDER, normalize_llm_provider
+
+        provider = normalize_llm_provider(self.llm_provider)
+        if provider == CLAUDE_PROVIDER:
+            return self.llm_api_key or self.anthropic_api_key
         return self.llm_api_key or self.resolved_api_key
 
     @property
@@ -203,6 +214,13 @@ class Settings(BaseSettings):
     def server_tts_available(self) -> bool:
         return bool(self.elevenlabs_api_key)
 
+    @field_validator("llm_provider")
+    @classmethod
+    def validate_llm_provider(cls, value: str) -> str:
+        from emberforge.services.llm import normalize_llm_provider
+
+        return normalize_llm_provider(value)
+
     @field_validator("mac_tts_mode")
     @classmethod
     def validate_mac_tts_mode(cls, value: str) -> str:
@@ -234,7 +252,15 @@ class Settings(BaseSettings):
 
     def validate_runtime(self) -> None:
         """Fail fast when required secrets or paths are missing."""
-        if not self.resolved_api_key:
+        from emberforge.services.llm import CLAUDE_PROVIDER, normalize_llm_provider
+
+        provider = normalize_llm_provider(self.llm_provider)
+        if provider == CLAUDE_PROVIDER:
+            if not self.resolved_llm_api_key:
+                raise RuntimeError(
+                    "ANTHROPIC_API_KEY is not set. Required when EMBER_LLM_PROVIDER=claude"
+                )
+        elif not self.resolved_api_key:
             raise RuntimeError(
                 "XAI_API_KEY is not set. Export it in your shell or add it to .env"
             )

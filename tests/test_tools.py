@@ -9,6 +9,7 @@ import pytest
 
 from emberforge.services.conversation import generate_reply
 from emberforge.services.personas import get_persona
+from emberforge.services.llm import resolve_llm_config
 from emberforge.services.tool_loop import complete_with_tools
 from emberforge.services.tools import ToolService
 from emberforge.settings import Settings
@@ -231,10 +232,11 @@ async def test_complete_with_tools_runs_tool_then_returns_reply(test_settings: S
     with httpx.Client(transport=transport) as client:
         with patch("emberforge.services.tool_loop.post_with_retry", AsyncMock(side_effect=fake_post)):
             with patch("emberforge.services.weather.httpx.get", side_effect=client.get):
+                llm_config = resolve_llm_config(settings=settings, model="grok-3-latest")
                 reply = await complete_with_tools(
                     settings=settings,
+                    llm_config=llm_config,
                     messages=[{"role": "user", "content": "What's the weather?"}],
-                    model="grok-3-latest",
                     temperature=0.5,
                     tool_service=tool_service,
                     request_id="req-tools",

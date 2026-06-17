@@ -43,10 +43,19 @@
           <p>Secrets are stored in <code>.env</code> on this machine.</p>
         </header>
         <form class="card form" id="keys-form">
+          <label>
+            LLM Provider
+            <select name="EMBER_LLM_PROVIDER" id="llm-provider">
+              <option value="grok">Grok (xAI) — default</option>
+              <option value="claude">Claude (Anthropic)</option>
+            </select>
+          </label>
           <label>XAI API Key <input type="password" name="XAI_API_KEY" autocomplete="off" placeholder="xai-…" /></label>
+          <label>Anthropic API Key <input type="password" name="ANTHROPIC_API_KEY" autocomplete="off" placeholder="For Claude provider" /></label>
           <label>ElevenLabs API Key <input type="password" name="ELEVENLABS_API_KEY" autocomplete="off" placeholder="Optional" /></label>
           <label>ElevenLabs Default Voice ID <input type="text" name="ELEVENLABS_DEFAULT_VOICE_ID" placeholder="Optional" /></label>
-          <label>LLM Model <input type="text" name="EMBER_LLM_MODEL" placeholder="grok-3-latest" /></label>
+          <label>LLM Model <input type="text" name="EMBER_LLM_MODEL" id="llm-model" placeholder="grok-3-latest" /></label>
+          <p class="hint" id="llm-provider-hint">Grok uses XAI_API_KEY. Claude uses ANTHROPIC_API_KEY and claude-sonnet-4-6 by default.</p>
           <div class="actions">
             <button type="submit" class="btn primary">Save keys</button>
             <span class="hint" id="keys-status"></span>

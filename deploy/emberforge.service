@@ -1,0 +1,20 @@
+[Unit]
+Description=EmberForge Voice Companion Backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=emberforge
+Group=emberforge
+WorkingDirectory=/opt/emberforge
+Environment=EMBERFORGE_ROOT=/opt/emberforge
+EnvironmentFile=-/opt/emberforge/.env
+ExecStart=/opt/emberforge/.venv/bin/emberforge serve --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target

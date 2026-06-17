@@ -3,11 +3,11 @@
 **A personal AI voice companion with swappable personas, live context, and custom voices**  
 *Talk to Ember on your Mac today. Configure your hub in the browser. Build the physical device tomorrow.*
 
-[![Status](https://img.shields.io/badge/Status-0.2.0-blue)](.)
+[![Status](https://img.shields.io/badge/Status-1.0.0-blue)](.)
 [![Hardware](https://img.shields.io/badge/Hardware-ESP32--S3%20(planned)-orange)](https://www.espressif.com/)
-[![LLM](https://img.shields.io/badge/LLM-Grok%20%2F%20xAI%20API-blue)](https://x.ai/)
+[![LLM](https://img.shields.io/badge/LLM-Grok%20%7C%20Claude-blue)](https://x.ai/)
 
-> **v0.2.0** — Phase 0 complete, M7 security shipped, local setup UI, multi-turn memory, live context, and on-demand weather/news tools. Release 1.0 gate: M8–M9 (observability, packaging). See [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_1.0.md`](docs/RELEASE_1.0.md).
+> **v1.0.0** — Release 1.0 complete (M1–M9): production backend with setup UI, multi-turn memory, live context, security, structured logging, Docker/deploy packaging, and optional Claude LLM (Grok default). See [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_1.0.md`](docs/RELEASE_1.0.md).
 
 ---
 
@@ -67,13 +67,26 @@ Copy `.env.example` to `.env` and set at minimum:
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `XAI_API_KEY` | Yes | LLM API key (xAI / Grok by default) |
-| `EMBER_LLM_MODEL` | No | Model id (default `grok-3-latest`) |
+| `XAI_API_KEY` | Yes* | LLM API key for Grok (default provider) |
+| `EMBER_LLM_PROVIDER` | No | `grok` (default) or `claude` |
+| `ANTHROPIC_API_KEY` | Yes** | Required when `EMBER_LLM_PROVIDER=claude` |
+| `EMBER_LLM_MODEL` | No | Model id (default `grok-3-latest` or `claude-sonnet-4-6`) |
+| `EMBER_LOG_JSON` | No | Structured JSON logs for production (`true`) |
 | `ELEVENLABS_API_KEY` | No | Server TTS for device API, setup test chat, optional Mac playback |
 | `ELEVENLABS_DEFAULT_VOICE_ID` | No | Default ElevenLabs voice for device/Mac fallback |
 | `EMBER_CONTEXT_ENABLED` | No | Inject weather, headlines, and profile once per session |
 | `EMBER_RSS_FEEDS` | No | Comma-separated RSS URLs for headlines and news tools |
 | `EMBER_TOOLS_ENABLED` | No | Let the LLM call weather/news tools on demand (default `true`) |
+
+\* `XAI_API_KEY` required when provider is `grok` (default).  
+\** `ANTHROPIC_API_KEY` required when provider is `claude`.
+
+Switch to Claude in `.env` or the setup UI:
+
+```bash
+EMBER_LLM_PROVIDER=claude
+ANTHROPIC_API_KEY=sk-ant-...
+```
 
 Mac TTS mode (`macos_say`, `elevenlabs`, `auto`) is chosen per run via `./start_ember.sh` — not stored in `.env`.
 
@@ -90,7 +103,7 @@ Open **`/setup`** after starting the backend:
 | Section | What it does |
 |---------|----------------|
 | **Dashboard** | Readiness, issues, RSS/context status |
-| **API Keys** | XAI, ElevenLabs, LLM model |
+| **API Keys** | Grok / Claude provider, API keys, LLM model |
 | **Location & Context** | Geocode, user profile, RSS feeds |
 | **Security & Devices** | Pairing codes, TOTP, revoke devices |
 | **Test Chat** | Multi-turn chat with voice (ElevenLabs in browser or macOS say on hub) |
@@ -229,26 +242,29 @@ CI runs on push to `main` via GitHub Actions (`.github/workflows/test.yml`).
 
 | Area | Status |
 |------|--------|
-| **Package version** | **0.2.0** |
+| **Package version** | **1.0.0** |
+| **Release 1.0** (M1–M9) | ✅ complete |
 | **Phase 0** Mac voice companion | ✅ complete |
 | Local setup website (`/setup`) | ✅ |
 | Multi-turn conversation memory | ✅ |
 | Live context (weather, RSS, profile) | ✅ |
 | On-demand weather/news tools | ✅ |
 | M7 security (pairing, TOTP, rate limits) | ✅ |
+| M8 observability (JSON logs, timing) | ✅ |
+| M9 packaging (Docker, launchd, systemd) | ✅ |
+| Claude LLM provider (Grok default) | ✅ |
 | Device API `/device/v1/` + contract tests | ✅ |
 | ElevenLabs server TTS | ✅ |
 | ESP32 firmware scaffold | ✅ scaffold |
-| Release 1.0 gate (M8–M9) | ⏳ observability, packaging |
 
 **Phase 0:** [`docs/PHASE_0.md`](docs/PHASE_0.md)  
-**Next:** M8 structured logging, M9 Docker/launchd. See [`docs/RELEASE_1.0.md`](docs/RELEASE_1.0.md).
+**Deploy:** [`deploy/README.md`](deploy/README.md)
 
 ---
 
 ## Changelog
 
-See [`CHANGELOG.md`](CHANGELOG.md). Latest release: **[0.2.0](https://github.com/sm00thindian/EmberForge/releases/tag/v0.2.0)** (2026-06-17).
+See [`CHANGELOG.md`](CHANGELOG.md). Latest release: **[1.0.0](https://github.com/sm00thindian/EmberForge/releases/tag/v1.0.0)** (2026-06-17).
 
 ---
 

@@ -12,6 +12,7 @@ import pyotp
 import uvicorn
 
 from emberforge import __version__
+from emberforge.observability.logging import configure_logging
 from emberforge.security.totp import provisioning_uri
 from emberforge.services.context_setup import ensure_context_location
 from emberforge.settings import Settings, get_settings
@@ -24,6 +25,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         interactive=not args.non_interactive,
     )
     settings.validate_runtime()
+    configure_logging(settings)
 
     host = args.host or settings.host
     port = args.port or settings.port
@@ -48,8 +50,10 @@ def cmd_check(args: argparse.Namespace) -> int:
     print(f"  personas_dir:   {settings.personas_dir}")
     print(f"  ember_env:      {settings.ember_env}")
     print(f"  xai_api_key:    {'set' if settings.resolved_api_key else 'MISSING'}")
+    print(f"  llm_provider:   {settings.llm_provider}")
     print(f"  llm_model:      {settings.llm_model}")
     print(f"  llm_api_url:    {settings.llm_api_url}")
+    print(f"  log_json:       {'on' if settings.log_json else 'off'}")
     print(f"  whisper_model:  {settings.whisper_model}")
     print(f"  device_auth:    {'required' if settings.device_auth_required else 'open'}")
     print(f"  admin_auth:     {'configured' if settings.admin_auth_configured else 'none'}")

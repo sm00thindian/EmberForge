@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "emberforge"
-version = "0.2.0"
+version = "1.0.0"
 description = "EmberForge voice companion backend — persona-driven AI for Mac and consumer devices"
 readme = "README.md"
 requires-python = ">=3.10"

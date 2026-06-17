@@ -13,7 +13,8 @@ from emberforge.errors import config_error, llm_error
 from emberforge.http.retry import is_retryable_status, post_with_retry
 from emberforge.services.context import ContextService
 from emberforge.services.history import ConversationHistoryStore, build_llm_messages
-from emberforge.services.llm import resolve_llm_model
+from emberforge.observability.timing import measure_phase
+from emberforge.services.llm import resolve_llm_config
 from emberforge.services.tool_loop import complete_with_tools
 from emberforge.services.tools import ToolService
 from emberforge.services.personas import Persona
@@ -88,11 +89,12 @@ async def generate_reply(
         raise config_error(str(exc), request_id=resolved_request_id) from exc
 
     resolved_temperature = temperature if temperature is not None else persona.temperature
-    resolved_model = resolve_llm_model(
+    llm_config = resolve_llm_config(
         settings=resolved_settings,
         persona=persona,
         model=model,
     )
+    resolved_model = llm_config.model
 
     history_messages: list[dict[str, str]] = []
     if session_id and history_store is not None:
@@ -117,54 +119,55 @@ async def generate_reply(
 
     messages = build_llm_messages(system_prompt, history_messages, message)
 
-    if resolved_tools.enabled:
-        reply = await complete_with_tools(
-            settings=resolved_settings,
-            messages=messages,
-            model=resolved_model,
-            temperature=resolved_temperature,
-            tool_service=resolved_tools,
-            request_id=resolved_request_id,
-        )
-    else:
-        payload = {
-            "model": resolved_model,
-            "messages": messages,
-            "temperature": resolved_temperature,
-            "max_tokens": resolved_settings.xai_max_tokens,
-        }
-        headers = {
-            "Authorization": f"Bearer {resolved_settings.resolved_llm_api_key}",
-            "Content-Type": "application/json",
-        }
-
-        try:
-            async with httpx.AsyncClient(timeout=resolved_settings.xai_timeout_seconds) as client:
-                response = await post_with_retry(
-                    client,
-                    resolved_settings.llm_api_url,
-                    max_retries=resolved_settings.xai_max_retries,
-                    base_delay_seconds=resolved_settings.xai_retry_base_seconds,
-                    json=payload,
-                    headers=headers,
-                )
-        except httpx.TimeoutException as exc:
-            raise llm_error("LLM request timed out", retryable=True, request_id=resolved_request_id) from exc
-        except httpx.TransportError as exc:
-            raise llm_error("LLM service unreachable", retryable=True, request_id=resolved_request_id) from exc
-
-        if response.status_code >= 400:
-            raise llm_error(
-                f"LLM returned HTTP {response.status_code}",
-                retryable=is_retryable_status(response.status_code),
+    with measure_phase("llm"):
+        if resolved_tools.enabled:
+            reply = await complete_with_tools(
+                settings=resolved_settings,
+                llm_config=llm_config,
+                messages=messages,
+                temperature=resolved_temperature,
+                tool_service=resolved_tools,
                 request_id=resolved_request_id,
             )
+        else:
+            payload = {
+                "model": resolved_model,
+                "messages": messages,
+                "temperature": resolved_temperature,
+                "max_tokens": resolved_settings.xai_max_tokens,
+            }
+            headers = {
+                "Authorization": f"Bearer {llm_config.api_key}",
+                "Content-Type": "application/json",
+            }
 
-        try:
-            data = response.json()
-            reply = data["choices"][0]["message"]["content"].strip()
-        except (KeyError, IndexError, TypeError, ValueError) as exc:
-            raise llm_error("Invalid response from LLM", retryable=False, request_id=resolved_request_id) from exc
+            try:
+                async with httpx.AsyncClient(timeout=resolved_settings.xai_timeout_seconds) as client:
+                    response = await post_with_retry(
+                        client,
+                        llm_config.api_url,
+                        max_retries=resolved_settings.xai_max_retries,
+                        base_delay_seconds=resolved_settings.xai_retry_base_seconds,
+                        json=payload,
+                        headers=headers,
+                    )
+            except httpx.TimeoutException as exc:
+                raise llm_error("LLM request timed out", retryable=True, request_id=resolved_request_id) from exc
+            except httpx.TransportError as exc:
+                raise llm_error("LLM service unreachable", retryable=True, request_id=resolved_request_id) from exc
+
+            if response.status_code >= 400:
+                raise llm_error(
+                    f"LLM returned HTTP {response.status_code}",
+                    retryable=is_retryable_status(response.status_code),
+                    request_id=resolved_request_id,
+                )
+
+            try:
+                data = response.json()
+                reply = data["choices"][0]["message"]["content"].strip()
+            except (KeyError, IndexError, TypeError, ValueError) as exc:
+                raise llm_error("Invalid response from LLM", retryable=False, request_id=resolved_request_id) from exc
 
     history_turns = 0
     if session_id and history_store is not None:

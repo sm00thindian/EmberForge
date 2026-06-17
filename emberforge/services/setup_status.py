@@ -11,6 +11,7 @@ _SENSITIVE_KEYS = frozenset(
         "XAI_API_KEY",
         "GROK_API_KEY",
         "EMBER_LLM_API_KEY",
+        "ANTHROPIC_API_KEY",
         "ELEVENLABS_API_KEY",
         "ELEVENLABS_DEFAULT_VOICE_ID",
         "EMBER_ADMIN_TOKEN",
@@ -22,9 +23,12 @@ _SENSITIVE_KEYS = frozenset(
 _CONFIG_KEYS = (
     "XAI_API_KEY",
     "GROK_API_KEY",
+    "EMBER_LLM_PROVIDER",
+    "ANTHROPIC_API_KEY",
     "EMBER_LLM_MODEL",
     "EMBER_LLM_API_URL",
     "EMBER_LLM_API_KEY",
+    "EMBER_LOG_JSON",
     "ELEVENLABS_API_KEY",
     "ELEVENLABS_DEFAULT_VOICE_ID",
     "ELEVENLABS_MODEL",
@@ -104,8 +108,14 @@ def build_setup_status(settings: Settings) -> dict:
     issues: list[str] = []
     warnings: list[str] = []
 
-    if not settings.resolved_api_key:
-        issues.append("XAI_API_KEY is not set")
+    from emberforge.services.llm import CLAUDE_PROVIDER, normalize_llm_provider
+
+    provider = normalize_llm_provider(settings.llm_provider)
+    if not settings.resolved_llm_api_key:
+        if provider == CLAUDE_PROVIDER:
+            issues.append("ANTHROPIC_API_KEY is not set")
+        else:
+            issues.append("XAI_API_KEY is not set")
 
     if settings.context_enabled and not settings.context_location_configured:
         warnings.append("Context is enabled but location is not configured")
@@ -144,7 +154,7 @@ def build_setup_status(settings: Settings) -> dict:
         "version": __version__,
         "ember_env": settings.ember_env,
         "setup_url": "/setup",
-        "api_key_set": bool(settings.resolved_api_key),
+        "api_key_set": bool(settings.resolved_llm_api_key),
         "context_enabled": settings.context_enabled,
         "context_location_configured": settings.context_location_configured,
         "location": {
@@ -155,6 +165,8 @@ def build_setup_status(settings: Settings) -> dict:
         },
         "rss_feed_count": len(settings.rss_feed_urls),
         "tools_enabled": settings.tools_enabled,
+        "llm_provider": settings.llm_provider,
+        "llm_model": settings.llm_model,
         "server_tts_available": settings.server_tts_available,
         "admin_auth_configured": settings.admin_auth_configured,
         "totp_configured": bool(settings.admin_totp_secret),

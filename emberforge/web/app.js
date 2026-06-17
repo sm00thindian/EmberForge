@@ -105,13 +105,39 @@ function updateChatVoiceHint(status) {
   }
 }
 
+function updateLlmProviderHint() {
+  const provider = $("#llm-provider")?.value || "grok";
+  const hint = $("#llm-provider-hint");
+  const model = $("#llm-model");
+  if (!hint) return;
+  if (provider === "claude") {
+    hint.textContent = "Claude uses ANTHROPIC_API_KEY. Default model: claude-sonnet-4-6.";
+    if (model && (!model.value || model.value.startsWith("grok"))) {
+      model.placeholder = "claude-sonnet-4-6";
+    }
+  } else {
+    hint.textContent = "Grok uses XAI_API_KEY. Default model: grok-3-latest.";
+    if (model && model.placeholder === "claude-sonnet-4-6") {
+      model.placeholder = "grok-3-latest";
+    }
+  }
+}
+
 async function loadConfig() {
   const { values } = await api("/setup/v1/config");
   const form = $("#keys-form");
   for (const [key, val] of Object.entries(values)) {
     const input = form.querySelector(`[name="${key}"]`);
-    if (input && val) input.placeholder = val.startsWith("••••") ? val : val;
+    if (!input || !val) continue;
+    if (input.tagName === "SELECT") {
+      input.value = val;
+    } else if (val.startsWith("••••")) {
+      input.placeholder = val;
+    } else if (!input.value) {
+      input.placeholder = val;
+    }
   }
+  updateLlmProviderHint();
   $("#rss-feeds").value = values.EMBER_RSS_FEEDS || "";
   $("#context-enabled").checked = values.EMBER_CONTEXT_ENABLED === "true";
   if (values.EMBER_ADMIN_TOTP_SECRET && !$("#totp-secret").value) {
@@ -227,6 +253,8 @@ async function loadDevices() {
     });
   });
 }
+
+$("#llm-provider")?.addEventListener("change", updateLlmProviderHint);
 
 $("#keys-form")?.addEventListener("submit", async (e) => {
   e.preventDefault();
