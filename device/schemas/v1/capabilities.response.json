@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://emberforge.local/device/v1/capabilities.response.json",
+  "title": "DeviceCapabilitiesResponse",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "api_version",
+    "service",
+    "features",
+    "tts",
+    "audio",
+    "llm",
+    "persona_selection",
+    "auth",
+    "admin_auth"
+  ],
+  "properties": {
+    "api_version": { "type": "string", "minLength": 1 },
+    "service": { "const": "emberforge" },
+    "features": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "personas",
+        "text_converse",
+        "audio_converse",
+        "server_tts",
+        "custom_voices",
+        "offline_mode"
+      ],
+      "properties": {
+        "personas": { "type": "boolean" },
+        "text_converse": { "type": "boolean" },
+        "audio_converse": { "type": "boolean" },
+        "server_tts": { "type": "boolean" },
+        "custom_voices": { "type": "boolean" },
+        "offline_mode": { "type": "boolean" }
+      }
+    },
+    "tts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["formats", "fallback_enabled"],
+      "properties": {
+        "formats": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "fallback_enabled": { "type": "boolean" }
+      }
+    },
+    "audio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input_formats",
+        "wav_encoding",
+        "preferred_sample_rate",
+        "max_upload_bytes"
+      ],
+      "properties": {
+        "input_formats": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "wav_encoding": { "type": "string", "minLength": 1 },
+        "preferred_sample_rate": { "type": "integer", "minimum": 1 },
+        "max_upload_bytes": { "type": "integer", "minimum": 1024 }
+      }
+    },
+    "llm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["default_model", "api"],
+      "properties": {
+        "default_model": { "type": "string", "minLength": 1 },
+        "api": { "const": "openai_chat_completions" }
+      }
+    },
+    "persona_selection": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "auth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "scheme", "pairing"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "scheme": { "const": "bearer" },
+        "pairing": { "type": "string", "minLength": 1 }
+      }
+    },
+    "admin_auth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["remote_production", "totp_session", "static_token"],
+      "properties": {
+        "remote_production": { "type": "boolean" },
+        "totp_session": { "type": "boolean" },
+        "static_token": { "type": "boolean" }
+      }
+    }
+  }
+}

@@ -11,7 +11,10 @@ from emberforge.errors import (
     stt_no_speech,
     stt_unavailable,
 )
+from emberforge.services.context import ContextService
+from emberforge.services.tools import ToolService
 from emberforge.services.conversation import ConversationResult, generate_reply
+from emberforge.services.history import ConversationHistoryStore
 from emberforge.services.personas import Persona, get_persona
 from emberforge.services.voice.base import STTProvider, TTSResult
 from emberforge.services.voice.registry import (
@@ -33,10 +36,19 @@ class ConverseService:
         settings: Settings,
         personas: dict[str, Persona],
         stt: STTProvider | None = None,
+        history_store: ConversationHistoryStore | None = None,
+        context_service: ContextService | None = None,
+        tool_service: ToolService | None = None,
     ) -> None:
         self.settings = settings
         self.personas = personas
         self.stt = stt or get_stt_provider(settings)
+        self.history = history_store or ConversationHistoryStore(
+            max_turns=settings.conversation_max_turns,
+            ttl_seconds=settings.conversation_session_ttl_seconds,
+        )
+        self.context = context_service or ContextService(settings)
+        self.tools = tool_service or ToolService(settings)
 
     def resolve_persona(self, persona_id: str) -> Persona:
         try:
@@ -56,7 +68,10 @@ class ConverseService:
         message: str,
         *,
         temperature: float | None = None,
+        model: str | None = None,
         request_id: str | None = None,
+        session_id: str | None = None,
+        clear_history: bool = False,
         synthesize_audio: bool = False,
         play_audio: bool = False,
     ) -> ConversationResult:
@@ -67,7 +82,13 @@ class ConverseService:
             message,
             settings=self.settings,
             temperature=temperature,
+            model=model,
             request_id=resolved_request_id,
+            session_id=session_id,
+            clear_history=clear_history,
+            history_store=self.history,
+            context_service=self.context,
+            tool_service=self.tools,
         )
         return await self._enrich_with_tts(
             persona,
@@ -81,7 +102,10 @@ class ConverseService:
         persona_id: str,
         audio_bytes: bytes,
         *,
+        model: str | None = None,
         request_id: str | None = None,
+        session_id: str | None = None,
+        clear_history: bool = False,
         synthesize_audio: bool = False,
         play_audio: bool = False,
     ) -> ConversationResult:
@@ -106,7 +130,13 @@ class ConverseService:
             persona,
             transcript,
             settings=self.settings,
+            model=model,
             request_id=resolved_request_id,
+            session_id=session_id,
+            clear_history=clear_history,
+            history_store=self.history,
+            context_service=self.context,
+            tool_service=self.tools,
         )
         return await self._enrich_with_tts(
             persona,
@@ -123,17 +153,16 @@ class ConverseService:
         synthesize_audio: bool,
         play_audio: bool,
     ) -> ConversationResult:
+        tts_result = TTSResult.from_voice_config(persona.voice)
+
         if synthesize_audio:
             tts, voice_config = get_device_tts_provider(persona.voice, self.settings)
             if tts.produces_audio():
                 tts_result = await tts.synthesize(result.response_text, voice_config)
-            else:
-                tts_result = TTSResult.from_voice_config(persona.voice)
-        elif play_audio:
+
+        if play_audio and not tts_result.audio_bytes:
             tts = get_tts_provider(persona.voice, self.settings)
             tts_result = await tts.synthesize(result.response_text, persona.voice)
-        else:
-            tts_result = TTSResult.from_voice_config(persona.voice)
 
         return replace(result, voice=tts_result.to_voice_dict())
 

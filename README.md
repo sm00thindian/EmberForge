@@ -1,13 +1,13 @@
 # EmberForge Voice Companion
 
-**A personal AI voice companion with swappable personas and custom voices**  
-*Talk to Ember on your Mac today. Build the physical device tomorrow.*
+**A personal AI voice companion with swappable personas, live context, and custom voices**  
+*Talk to Ember on your Mac today. Configure your hub in the browser. Build the physical device tomorrow.*
 
-[![Status](https://img.shields.io/badge/Status-0.1.0%20(pre--release)-yellow)](.)
+[![Status](https://img.shields.io/badge/Status-0.2.0-blue)](.)
 [![Hardware](https://img.shields.io/badge/Hardware-ESP32--S3%20(planned)-orange)](https://www.espressif.com/)
 [![LLM](https://img.shields.io/badge/LLM-Grok%20%2F%20xAI%20API-blue)](https://x.ai/)
 
-> **Pre-release:** Package version `0.1.0`. Milestones M1–M6 are complete; Release 1.0 gate is in progress. See [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_1.0.md`](docs/RELEASE_1.0.md).
+> **v0.2.0** — Phase 0 complete, M7 security shipped, local setup UI, multi-turn memory, live context, and on-demand weather/news tools. Release 1.0 gate: M8–M9 (observability, packaging). See [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_1.0.md`](docs/RELEASE_1.0.md).
 
 ---
 
@@ -32,17 +32,23 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev,mac]"
 cp .env.example .env          # add XAI_API_KEY (and optional ElevenLabs keys)
 emberforge check              # validate config + personas
+./start_ember.sh --text-only --open-setup   # hub + browser setup UI
+```
+
+Or full voice mode:
+
+```bash
 ./start_ember.sh              # interactive setup + backend + voice companion
 ```
 
 The start script creates the venv if needed, picks or creates `.env`, and prompts for missing configuration.
 
+**Setup website:** [http://127.0.0.1:8000/setup](http://127.0.0.1:8000/setup) — API keys, location, context, pairing, TOTP, and test chat with voice.
+
 **Backend only:**
 
 ```bash
-./start_ember.sh --text-only
-# or
-emberforge serve
+emberforge serve              # prints setup URL on startup
 ```
 
 **Talk to HAL:**
@@ -51,7 +57,7 @@ emberforge serve
 ./start_ember.sh --persona hal_9000
 ```
 
-Switch personas mid-session: `persona hal_9000` or `persona ember`
+Switch personas mid-session: `persona hal_9000` or `persona ember` · `clear` starts a fresh conversation thread
 
 ---
 
@@ -61,12 +67,37 @@ Copy `.env.example` to `.env` and set at minimum:
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `XAI_API_KEY` | Yes | Grok / xAI LLM |
-| `ELEVENLABS_API_KEY` | No | Server TTS for device API and optional Mac playback |
+| `XAI_API_KEY` | Yes | LLM API key (xAI / Grok by default) |
+| `EMBER_LLM_MODEL` | No | Model id (default `grok-3-latest`) |
+| `ELEVENLABS_API_KEY` | No | Server TTS for device API, setup test chat, optional Mac playback |
 | `ELEVENLABS_DEFAULT_VOICE_ID` | No | Default ElevenLabs voice for device/Mac fallback |
-| `EMBER_MAC_TTS` | No | `macos_say` (default), `elevenlabs`, or `auto` |
+| `EMBER_CONTEXT_ENABLED` | No | Inject weather, headlines, and profile once per session |
+| `EMBER_RSS_FEEDS` | No | Comma-separated RSS URLs for headlines and news tools |
+| `EMBER_TOOLS_ENABLED` | No | Let the LLM call weather/news tools on demand (default `true`) |
+
+Mac TTS mode (`macos_say`, `elevenlabs`, `auto`) is chosen per run via `./start_ember.sh` — not stored in `.env`.
+
+Production security: `EMBER_ENV=production`, device pairing (`emberforge pair`), optional TOTP (`emberforge totp-setup`). See [`docs/M7_SECURITY.md`](docs/M7_SECURITY.md).
 
 Full reference: [`docs/RELEASE_1.0.md`](docs/RELEASE_1.0.md#configuration-reference)
+
+---
+
+## Local Setup UI
+
+Open **`/setup`** after starting the backend:
+
+| Section | What it does |
+|---------|----------------|
+| **Dashboard** | Readiness, issues, RSS/context status |
+| **API Keys** | XAI, ElevenLabs, LLM model |
+| **Location & Context** | Geocode, user profile, RSS feeds |
+| **Security & Devices** | Pairing codes, TOTP, revoke devices |
+| **Test Chat** | Multi-turn chat with voice (ElevenLabs in browser or macOS say on hub) |
+
+```bash
+./start_ember.sh --text-only --open-setup
+```
 
 ---
 
@@ -79,7 +110,8 @@ Full reference: [`docs/RELEASE_1.0.md`](docs/RELEASE_1.0.md#configuration-refere
 │                      │                │                          │
 │  Button + mic        │  /device/v1/   │  Personas + Grok         │
 │  Speaker + display   │  converse      │  Whisper STT + TTS       │
-└──────────────────────┘                └─────────────────────────┘
+└──────────────────────┘                │  Setup UI at /setup      │
+                                        └─────────────────────────┘
 ```
 
 Consumer devices **never hold API keys or persona prompts**. They upload audio, receive a structured response (text + MP3 when ElevenLabs is configured), and play it back.
@@ -92,22 +124,24 @@ See [`device/README.md`](device/README.md) for the full contract and [`firmware/
 
 ```
 EmberForge/
-├── CHANGELOG.md                # Keep a Changelog format
+├── CHANGELOG.md
 ├── start_ember.sh              # Interactive Mac startup
 ├── .env.example                # Local configuration template
 ├── device/README.md            # Consumer device API contract
-├── docs/RELEASE_1.0.md         # 1.0 milestone checklist
+├── docs/
+│   ├── PHASE_0.md              # Mac companion exit criteria
+│   ├── M7_SECURITY.md          # Pairing, TOTP, rate limits
+│   └── RELEASE_1.0.md        # 1.0 milestone checklist
 ├── emberforge/                 # Python package (the backend)
-│   ├── cli.py                  # emberforge serve | check
-│   ├── settings.py             # Central configuration
-│   ├── services/               # personas, conversation, voice, health
-│   ├── client/                 # Mac voice companion + audio playback
-│   └── api/routes/             # health, chat, device
+│   ├── cli.py                  # serve | check | pair | totp-setup
+│   ├── web/                    # Local setup SPA (/setup)
+│   ├── services/               # personas, conversation, context, tools, voice
+│   ├── client/                 # Mac voice companion + PTT
+│   └── api/routes/             # health, chat, device, admin, setup
 ├── personas/                   # Persona definitions (personality + voice)
-├── prompts/                    # System prompts per persona
+├── prompts/                    # System prompts + user_context.md
 ├── voices/custom/              # Recorded voice samples + consent
-├── tests/                      # pytest suite
-├── backend/main.py             # Compatibility shim
+├── tests/                      # pytest suite (120+ tests)
 └── phase-0-brain/
     └── mac_voice_companion.py  # Thin Mac client entry point
 ```
@@ -123,7 +157,7 @@ Personas are JSON files in `personas/`. Each defines a system prompt, voice prof
 | `ember` | Ember | Shelley (English US), rate 155 |
 | `hal_9000` | HAL | Daniel (UK), rate 145 |
 
-Add a persona: write a prompt in `prompts/personas/`, create `personas/your_persona.json`, restart the backend.
+Add a persona: write a prompt in `prompts/`, create `personas/your_persona.json`, restart the backend.
 
 ---
 
@@ -131,18 +165,10 @@ Add a persona: write a prompt in `prompts/personas/`, create `personas/your_pers
 
 | Mode | How | Cost |
 |------|-----|------|
-| **Mac voice** (`./start_ember.sh`) | macOS `say` by default | Free |
-| **Mac ElevenLabs** (`EMBER_MAC_TTS=elevenlabs`) | ElevenLabs MP3 via `afplay` | ElevenLabs credits |
+| **Mac voice** (`./start_ember.sh`) | Hold **SPACE** to talk; macOS `say` by default | Free |
+| **Mac ElevenLabs** (`./start_ember.sh --elevenlabs`) | ElevenLabs MP3 via `afplay` | ElevenLabs credits |
+| **Setup test chat** | ElevenLabs in browser or macOS say on hub | Free / ElevenLabs |
 | **Device API** | ElevenLabs MP3 in `voice.audio_base64` | ElevenLabs credits |
-
-Test ElevenLabs on Mac without the full voice loop:
-
-```bash
-curl -s -X POST http://127.0.0.1:8000/device/v1/converse/text \
-  -H "Content-Type: application/json" \
-  -d '{"message":"Hello","persona":"ember","device_id":"mac-test"}' \
-  | python3 -c "import json,base64,tempfile,subprocess,sys; d=json.load(sys.stdin); p=tempfile.mktemp(suffix='.mp3'); open(p,'wb').write(base64.b64decode(d['voice']['audio_base64'])); subprocess.run(['afplay',p])"
-```
 
 ---
 
@@ -166,16 +192,21 @@ curl http://127.0.0.1:8000/health/ready
 curl http://127.0.0.1:8000/personas
 curl -X POST http://127.0.0.1:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "Good morning.", "persona": "hal_9000"}'
+  -d '{"message": "Good morning.", "persona": "hal_9000", "session_id": "my-session"}'
+```
+
+**Setup:**
+
+```bash
+curl http://127.0.0.1:8000/setup/v1/status
+open http://127.0.0.1:8000/setup
 ```
 
 **Consumer device:**
 
 ```bash
 curl http://127.0.0.1:8000/device/v1/capabilities
-curl -X POST http://127.0.0.1:8000/device/v1/converse/text \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Hello Ember", "persona": "ember", "device_id": "dev-001"}'
+emberforge pair   # issue pairing code for hardware
 ```
 
 Errors return structured JSON: `code`, `message`, `retryable`, `request_id`.
@@ -198,22 +229,26 @@ CI runs on push to `main` via GitHub Actions (`.github/workflows/test.yml`).
 
 | Area | Status |
 |------|--------|
-| Mac voice companion + Whisper STT | ✅ |
-| Persona system (Ember, HAL) | ✅ |
-| `emberforge` package + CLI | ✅ |
-| Device API `/device/v1/` | ✅ |
-| ElevenLabs server TTS (device + optional Mac) | ✅ |
-| Reliability (retries, errors, `/health/ready`) | ✅ |
+| **Package version** | **0.2.0** |
+| **Phase 0** Mac voice companion | ✅ complete |
+| Local setup website (`/setup`) | ✅ |
+| Multi-turn conversation memory | ✅ |
+| Live context (weather, RSS, profile) | ✅ |
+| On-demand weather/news tools | ✅ |
+| M7 security (pairing, TOTP, rate limits) | ✅ |
+| Device API `/device/v1/` + contract tests | ✅ |
+| ElevenLabs server TTS | ✅ |
 | ESP32 firmware scaffold | ✅ scaffold |
-| Release 1.0 gate (M7–M9) | ⏳ in progress |
+| Release 1.0 gate (M8–M9) | ⏳ observability, packaging |
 
-**Next milestones:** M7 security, M8 observability, M9 packaging. See [`docs/RELEASE_1.0.md`](docs/RELEASE_1.0.md).
+**Phase 0:** [`docs/PHASE_0.md`](docs/PHASE_0.md)  
+**Next:** M8 structured logging, M9 Docker/launchd. See [`docs/RELEASE_1.0.md`](docs/RELEASE_1.0.md).
 
 ---
 
 ## Changelog
 
-See [`CHANGELOG.md`](CHANGELOG.md) for release history. Unreleased work is listed at the top; version `0.1.0` remains the last tagged baseline until Release 1.0.
+See [`CHANGELOG.md`](CHANGELOG.md). Latest release: **[0.2.0](https://github.com/sm00thindian/EmberForge/releases/tag/v0.2.0)** (2026-06-17).
 
 ---
 

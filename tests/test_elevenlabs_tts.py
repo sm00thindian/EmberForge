@@ -44,8 +44,12 @@ async def test_elevenlabs_synthesize_returns_mp3(eleven_settings: Settings):
 
 
 @pytest.mark.asyncio
-async def test_elevenlabs_without_api_key_returns_metadata_only(test_settings: Settings):
-    tts = ElevenLabsTTS(test_settings)
+async def test_elevenlabs_without_api_key_returns_metadata_only(monkeypatch):
+    monkeypatch.setenv("XAI_API_KEY", "test-key")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "")
+    monkeypatch.delenv("ELEVENLABS_DEFAULT_VOICE_ID", raising=False)
+    settings = Settings(_env_file=None)
+    tts = ElevenLabsTTS(settings)
     voice = VoiceConfig(provider="elevenlabs", voice="voice-abc")
     result = await tts.synthesize("Hello", voice)
     assert result.audio_bytes is None

@@ -15,6 +15,7 @@ from emberforge.api.routes import chat, device, health
 from emberforge.services.conversation import ConversationResult
 from emberforge.services.converse import ConverseService
 from emberforge.services.personas import load_personas
+from emberforge.security.runtime import reset_security_state
 from emberforge.settings import Settings, get_settings
 
 
@@ -22,8 +23,13 @@ from emberforge.settings import Settings, get_settings
 def test_settings(monkeypatch) -> Settings:
     """Settings with a fake API key, isolated from the developer's .env."""
     monkeypatch.setenv("XAI_API_KEY", "test-key-for-pytest")
+    monkeypatch.setenv("EMBER_ENV", "development")
+    monkeypatch.setenv("EMBER_TOOLS_ENABLED", "false")
     monkeypatch.delenv("GROK_API_KEY", raising=False)
+    monkeypatch.delenv("EMBER_MAC_TTS", raising=False)
+    monkeypatch.delenv("EMBER_DEVICE_TOKEN", raising=False)
     get_settings.cache_clear()
+    reset_security_state()
     return Settings()
 
 
@@ -47,18 +53,28 @@ def client_with_mock(test_settings: Settings, monkeypatch) -> TestClient:
             response_text=f"Reply from {persona.name}",
             persona_id=persona.id,
             persona_name=persona.name,
-            voice={"provider": "macos_say", "voice": "Samantha"},
+            voice={
+                "provider": "macos_say",
+                "voice": "Samantha",
+                "rate": None,
+                "profile": None,
+                "format": None,
+                "audio_url": None,
+                "audio_base64": None,
+            },
             display_lines=["Reply from", persona.name],
             timestamp="2026-06-16T12:00:00+00:00",
+            model="grok-3-latest",
         )
 
     monkeypatch.setattr(converse, "converse_text", AsyncMock(side_effect=_fake_text))
     monkeypatch.setattr(converse, "converse_audio", AsyncMock(side_effect=_fake_text))
 
     app = FastAPI(title="test", version=__version__)
-    device_meta, device_audio = device.create_device_routers(test_settings, converse)
+    device_pair, device_meta, device_audio = device.create_device_routers(test_settings, converse)
     app.include_router(health.create_health_router(test_settings))
     app.include_router(chat.create_chat_router(test_settings, converse))
+    app.include_router(device_pair)
     app.include_router(device_meta)
     app.include_router(device_audio)
     configure_app(app)

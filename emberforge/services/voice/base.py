@@ -74,6 +74,7 @@ class TTSResult:
             "format": self.format,
             "audio_url": None,
             "audio_base64": None,
+            "played_locally": self.played_locally,
         }
         if self.audio_bytes:
             payload["audio_base64"] = base64.b64encode(self.audio_bytes).decode("ascii")

@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://emberforge.local/device/v1/converse.response.json",
+  "title": "DeviceConverseResponse",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "request_id",
+    "transcript",
+    "response_text",
+    "persona",
+    "voice",
+    "display",
+    "timestamp"
+  ],
+  "properties": {
+    "request_id": { "type": "string", "minLength": 1 },
+    "transcript": { "type": "string" },
+    "response_text": { "type": "string", "minLength": 1 },
+    "persona": { "$ref": "#/$defs/personaRef" },
+    "voice": { "$ref": "#/$defs/voicePayload" },
+    "display": { "$ref": "#/$defs/displayPayload" },
+    "timestamp": { "type": "string", "minLength": 1 },
+    "device_id": { "type": ["string", "null"] },
+    "session_id": { "type": "string", "minLength": 1 },
+    "history_turns": { "type": "integer", "minimum": 0 }
+  },
+  "$defs": {
+    "personaRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 }
+      }
+    },
+    "voicePayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "voice",
+        "rate",
+        "profile",
+        "format",
+        "audio_url",
+        "audio_base64"
+      ],
+      "properties": {
+        "provider": { "type": "string", "minLength": 1 },
+        "voice": { "type": ["string", "null"] },
+        "rate": { "type": ["integer", "null"] },
+        "profile": { "type": ["string", "null"] },
+        "format": { "type": ["string", "null"] },
+        "audio_url": { "type": ["string", "null"] },
+        "audio_base64": { "type": ["string", "null"] }
+      }
+    },
+    "displayPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "lines"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "lines": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

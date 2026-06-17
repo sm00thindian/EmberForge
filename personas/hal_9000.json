@@ -1,14 +1,14 @@
 {
   "id": "hal_9000",
   "name": "HAL",
-  "tagline": "Calm, precise ship computer — inspired character persona",
+  "tagline": "Calm, mission-focused ship computer — inspired by 2001",
   "prompt_file": "prompts/personas/hal_9000.md",
   "voice": {
     "provider": "macos_say",
     "voice": "Daniel",
     "rate": 145
   },
-  "temperature": 0.35,
+  "temperature": 0.22,
   "type": "character_inspired",
   "inspired_by": "HAL 9000 from 2001: A Space Odyssey",
   "disclaimer": "Fan-inspired personality for personal use. Not affiliated with or endorsed by rights holders."

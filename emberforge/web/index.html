@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EmberForge Setup</title>
+  <link rel="icon" href="/setup/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/setup/styles.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">◆</span>
+        <div>
+          <h1>EmberForge</h1>
+          <p class="subtitle">Local setup</p>
+        </div>
+      </div>
+      <nav class="nav" id="nav">
+        <button type="button" class="nav-item active" data-view="dashboard">Dashboard</button>
+        <button type="button" class="nav-item" data-view="keys">API Keys</button>
+        <button type="button" class="nav-item" data-view="context">Location &amp; Context</button>
+        <button type="button" class="nav-item" data-view="security">Security &amp; Devices</button>
+        <button type="button" class="nav-item" data-view="test">Test Chat</button>
+      </nav>
+      <p class="sidebar-foot" id="version-label">—</p>
+    </aside>
+
+    <main class="content">
+      <section class="view active" id="view-dashboard">
+        <header class="page-header">
+          <h2>Dashboard</h2>
+          <p>Hub readiness and quick status.</p>
+        </header>
+        <div class="status-banner" id="ready-banner">Loading…</div>
+        <div class="grid two" id="dashboard-cards"></div>
+      </section>
+
+      <section class="view" id="view-keys">
+        <header class="page-header">
+          <h2>API Keys</h2>
+          <p>Secrets are stored in <code>.env</code> on this machine.</p>
+        </header>
+        <form class="card form" id="keys-form">
+          <label>XAI API Key <input type="password" name="XAI_API_KEY" autocomplete="off" placeholder="xai-…" /></label>
+          <label>ElevenLabs API Key <input type="password" name="ELEVENLABS_API_KEY" autocomplete="off" placeholder="Optional" /></label>
+          <label>ElevenLabs Default Voice ID <input type="text" name="ELEVENLABS_DEFAULT_VOICE_ID" placeholder="Optional" /></label>
+          <label>LLM Model <input type="text" name="EMBER_LLM_MODEL" placeholder="grok-3-latest" /></label>
+          <div class="actions">
+            <button type="submit" class="btn primary">Save keys</button>
+            <span class="hint" id="keys-status"></span>
+          </div>
+        </form>
+      </section>
+
+      <section class="view" id="view-context">
+        <header class="page-header">
+          <h2>Location &amp; Context</h2>
+          <p>Weather, headlines, and your personal profile for Ember.</p>
+        </header>
+        <div class="grid two">
+          <div class="card">
+            <h3>Location</h3>
+            <form id="location-form" class="form inline">
+              <label>City or region <input type="text" name="query" placeholder="Hodgen, Oklahoma" required /></label>
+              <button type="submit" class="btn">Search</button>
+            </form>
+            <div id="location-matches" class="matches"></div>
+            <p class="hint" id="location-status"></p>
+          </div>
+          <div class="card">
+            <h3>RSS feeds</h3>
+            <label class="stack">
+              Comma-separated URLs
+              <textarea name="EMBER_RSS_FEEDS" id="rss-feeds" rows="4" placeholder="https://feeds.npr.org/1001/rss.xml,…"></textarea>
+            </label>
+            <label class="checkbox">
+              <input type="checkbox" id="context-enabled" />
+              Enable live context (weather + headlines)
+            </label>
+            <div class="actions">
+              <button type="button" class="btn primary" id="save-context-btn">Save context settings</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>User profile</h3>
+          <p class="hint">Markdown notes Ember may reference when relevant.</p>
+          <textarea id="profile-content" rows="10"></textarea>
+          <div class="actions">
+            <button type="button" class="btn primary" id="save-profile-btn">Save profile</button>
+            <span class="hint" id="profile-status"></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-security">
+        <header class="page-header">
+          <h2>Security &amp; Devices</h2>
+          <p>Pair hardware and configure admin MFA for remote access.</p>
+        </header>
+        <div class="grid two">
+          <div class="card">
+            <h3>Device pairing</h3>
+            <p class="hint">Generate a code on this hub, then enter it on your device firmware.</p>
+            <div class="pairing-code" id="pairing-code">———</div>
+            <p class="hint" id="pairing-expiry"></p>
+            <div class="actions">
+              <button type="button" class="btn primary" id="pair-btn">Generate pairing code</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Admin TOTP</h3>
+            <p class="hint">For remote access to <code>/chat</code> in production.</p>
+            <div class="actions">
+              <button type="button" class="btn" id="totp-generate-btn">Generate new secret</button>
+            </div>
+            <pre class="code-block" id="totp-uri">Not configured</pre>
+            <label class="stack">
+              TOTP secret (saved to .env)
+              <input type="text" id="totp-secret" placeholder="Generate or paste secret" />
+            </label>
+            <div class="actions">
+              <button type="button" class="btn primary" id="totp-save-btn">Save TOTP secret</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Paired devices</h3>
+          <div id="device-list" class="device-list"></div>
+        </div>
+      </section>
+
+      <section class="view" id="view-test">
+        <header class="page-header">
+          <h2>Test Chat</h2>
+          <p>Multi-turn chat with the same session memory as the Mac voice client.</p>
+        </header>
+        <div class="card chat">
+          <div class="chat-toolbar">
+            <label>
+              Persona
+              <select id="test-persona"></select>
+            </label>
+            <button type="button" class="btn" id="chat-clear-btn">Clear conversation</button>
+          </div>
+          <p class="hint" id="chat-session-hint">New session — context builds as you chat</p>
+          <label class="checkbox">
+            <input type="checkbox" id="chat-voice" checked />
+            Speak responses (ElevenLabs in browser, or macOS say on this Mac)
+          </label>
+          <p class="hint" id="chat-voice-hint"></p>
+          <div class="chat-log" id="chat-log"></div>
+          <form id="chat-form" class="chat-input">
+            <input type="text" id="chat-message" placeholder="Say hello to Ember…" autocomplete="off" />
+            <button type="submit" class="btn primary">Send</button>
+          </form>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div class="toast" id="toast" hidden></div>
+  <script src="/setup/app.js"></script>
+</body>
+</html>

@@ -20,6 +20,7 @@ def create_health_router(settings: Settings) -> APIRouter:
             "status": "healthy",
             "version": __version__,
             "default_persona": settings.default_persona_id,
+            "setup_url": "/setup",
             "clients": {
                 "mac": ["/personas", "/chat"],
                 "device": [

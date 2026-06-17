@@ -5,13 +5,16 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+import threading
 import time
+import uuid
 from typing import Any
 
 import requests
 
 from emberforge.client.audio_playback import play_audio_bytes
-from emberforge.client.recording import SAMPLE_RATE, record_until_silence
+from emberforge.client.ptt import PushToTalkSession, SessionEventType, clear_listening_indicator
+from emberforge.client.recording import SAMPLE_RATE
 from emberforge.services.personas import VoiceConfig
 from emberforge.services.voice.registry import (
     get_mac_tts_provider,
@@ -29,6 +32,10 @@ _settings = Settings()
 _personas: dict[str, dict[str, Any]] = {}
 _active_persona_id = DEFAULT_PERSONA
 _stt = get_stt_provider(_settings)
+_speaking = False
+_processing_turn = False
+_turn_lock = threading.Lock()
+_session_id = str(uuid.uuid4())
 
 
 def wait_for_backend(timeout_seconds: float = 30.0) -> bool:
@@ -60,23 +67,29 @@ def print_persona_menu() -> None:
         print(f"  - {persona_id}: {persona['name']} — {tagline}{suffix}")
 
 
+def reset_conversation(*, announce: bool = True) -> None:
+    """Start a fresh multi-turn thread with the active persona."""
+    global _session_id
+    _session_id = str(uuid.uuid4())
+    if announce:
+        print("New conversation — prior context cleared.")
+
+
 def select_persona(persona_id: str) -> bool:
     global _active_persona_id
     if persona_id not in _personas:
         print(f"Unknown persona '{persona_id}'.")
         print_persona_menu()
         return False
+    if persona_id != _active_persona_id:
+        reset_conversation(announce=False)
     _active_persona_id = persona_id
     active = _personas[persona_id]
-    print(f"\nActive persona: {active['name']} ({persona_id})")
+    print(f"\nActive persona: {active['name']} ({persona_id}) — fresh conversation")
     return True
 
 
-def listen_from_microphone() -> str | None:
-    audio = record_until_silence()
-    if audio is None:
-        return None
-
+def transcribe_audio(audio) -> str | None:
     if not _stt.available():
         print("Whisper STT is not available.")
         return None
@@ -92,11 +105,49 @@ def listen_from_microphone() -> str | None:
     return text
 
 
-def chat_with_persona(message: str) -> dict[str, Any]:
-    payload = {"message": message, "persona": _active_persona_id}
+def parse_quoted_prompt(raw: str) -> str | None:
+    """Return inner text when input is a quoted prompt, e.g. \"Hal, close the cabin doors\"."""
+    stripped = raw.strip()
+    if len(stripped) < 2:
+        return None
+    if stripped[0] not in {'"', "'"} or stripped[-1] != stripped[0]:
+        return None
+    message = stripped[1:-1].strip()
+    return message or None
+
+
+def chat_with_persona(message: str, *, clear_history: bool = False) -> dict[str, Any]:
+    payload = {
+        "message": message,
+        "persona": _active_persona_id,
+        "session_id": _session_id,
+        "clear_history": clear_history,
+    }
     response = requests.post(CHAT_URL, json=payload, timeout=90)
     response.raise_for_status()
     return response.json()
+
+
+def run_conversation_turn(user_input: str) -> None:
+    global _speaking
+    active_name = _personas[_active_persona_id]["name"]
+    turn_hint = ""
+    print(f"\n{active_name} is thinking...")
+    result = chat_with_persona(user_input)
+    turns = result.get("history_turns", 0)
+    if turns > 1:
+        turn_hint = f"  (turn {turns} in this conversation)"
+
+    print("\n" + "=" * 60)
+    print(f"{result['persona_name'].upper()}{turn_hint}:")
+    print(result["response"])
+    print("=" * 60 + "\n")
+
+    _speaking = True
+    try:
+        speak_response(result["response"], result.get("voice", {}))
+    finally:
+        _speaking = False
 
 
 def speak_response(text: str, voice_config: dict[str, Any]) -> None:
@@ -121,6 +172,9 @@ def describe_mac_tts_mode() -> str:
 def handle_command(cmd: str) -> str:
     if cmd in {"quit", "exit", "q"}:
         return "quit"
+    if cmd in {"clear", "new", "reset", "new conversation"}:
+        reset_conversation()
+        return "continue"
     if cmd in {"personas", "list"}:
         print_persona_menu()
         return "continue"
@@ -128,10 +182,110 @@ def handle_command(cmd: str) -> str:
         persona_id = cmd.split(maxsplit=1)[1].strip()
         select_persona(persona_id)
         return "continue"
-    if cmd == "":
-        return "listen"
-    print("Commands: ENTER = talk, persona <id>, personas, quit")
+    print(
+        'Commands: persona <id>, personas, clear, quit — '
+        'or a quoted prompt like "Hello HAL"'
+    )
     return "continue"
+
+
+def on_ptt_finished(duration: float) -> None:
+    clear_listening_indicator(f"Captured {duration:.1f}s of audio.")
+
+
+def process_command_line(raw: str) -> str:
+    quoted = parse_quoted_prompt(raw)
+    if quoted is not None:
+        print(f'You typed: {quoted}')
+        run_conversation_turn(quoted)
+        return "continue"
+
+    action = handle_command(raw.strip().lower())
+    if action == "quit":
+        return "quit"
+    return action
+
+
+def _can_accept_ptt() -> bool:
+    return not _speaking and not _processing_turn
+
+
+def _handle_audio_turn(audio) -> None:
+    global _processing_turn
+    with _turn_lock:
+        if _processing_turn or _speaking:
+            return
+        _processing_turn = True
+    try:
+        user_input = transcribe_audio(audio)
+        if user_input:
+            run_conversation_turn(user_input)
+    finally:
+        _processing_turn = False
+
+
+def _read_command_line(session: PushToTalkSession, *, from_typing: bool) -> str | None:
+    if not from_typing:
+        session.enter_command_mode()
+    try:
+        if from_typing:
+            return sys.stdin.readline()
+        return input("> ")
+    except EOFError:
+        return None
+    finally:
+        session.leave_command_mode()
+        session.clear_line_input_pending()
+
+
+def _handle_command_input(session: PushToTalkSession, *, from_typing: bool = False) -> bool:
+    """Return True when the session should continue."""
+    raw = _read_command_line(session, from_typing=from_typing)
+    if raw is None:
+        return False
+
+    if process_command_line(raw) == "quit":
+        print(f"{_personas[_active_persona_id]['name']} signing off.")
+        session.request_stop()
+        return False
+    return True
+
+
+def run_session_loop(session: PushToTalkSession) -> None:
+    while True:
+        event = session.wait_event(timeout=0.1)
+        if event is None:
+            continue
+
+        if event.type == SessionEventType.STOP:
+            break
+
+        if event.type == SessionEventType.AUDIO:
+            if not _can_accept_ptt():
+                continue
+            threading.Thread(
+                target=_handle_audio_turn,
+                args=(event.audio,),
+                name="emberforge-ptt-turn",
+                daemon=True,
+            ).start()
+            continue
+
+        if event.type in {SessionEventType.COMMAND, SessionEventType.TYPING}:
+            if _processing_turn:
+                print("Still processing the last turn — try again in a moment.")
+                if event.type == SessionEventType.TYPING:
+                    try:
+                        sys.stdin.readline()
+                    except EOFError:
+                        pass
+                    finally:
+                        session.leave_command_mode()
+                        session.clear_line_input_pending()
+                continue
+            from_typing = event.type == SessionEventType.TYPING
+            if not _handle_command_input(session, from_typing=from_typing):
+                break
 
 
 def main() -> None:
@@ -149,7 +303,7 @@ def main() -> None:
 
     print(f"TTS mode: {describe_mac_tts_mode()}")
     if _settings.mac_tts_mode == "macos_say":
-        print("Tip: set EMBER_MAC_TTS=elevenlabs in .env for ElevenLabs playback on Mac.")
+        print("Tip: restart with ./start_ember.sh --elevenlabs for ElevenLabs playback on Mac.")
 
     print("\nWaiting for backend...")
     if not wait_for_backend():
@@ -167,37 +321,27 @@ def main() -> None:
     select_persona(_active_persona_id)
     print_persona_menu()
     print("\nSwitch anytime with: persona hal_9000")
+    print('Type a quoted prompt to skip the mic, e.g. "Hal, close the cabin doors"')
     print("Press Ctrl+C to exit.\n")
 
-    while True:
-        try:
-            print("Press ENTER to speak, or type a command (personas / persona <id> / quit).")
-            cmd = input("> ").strip().lower()
-            action = handle_command(cmd)
-            if action == "quit":
-                print(f"{_personas[_active_persona_id]['name']} signing off.")
-                break
-            if action == "continue":
-                continue
+    session = PushToTalkSession(
+        can_record=_can_accept_ptt,
+        on_finished=on_ptt_finished,
+    )
+    print(
+        f"Hold {session.ptt_key_label} to speak (max 30s). "
+        "Conversation memory is on — say `clear` to start over."
+    )
+    session.start()
 
-            user_input = listen_from_microphone()
-            if not user_input:
-                continue
+    try:
+        run_session_loop(session)
+    except KeyboardInterrupt:
+        print("\n\nSigning off.")
+        session.request_stop()
+    finally:
+        session.stop()
 
-            active_name = _personas[_active_persona_id]["name"]
-            print(f"\n{active_name} is thinking...")
-            result = chat_with_persona(user_input)
 
-            print("\n" + "=" * 60)
-            print(f"{result['persona_name'].upper()}:")
-            print(result["response"])
-            print("=" * 60 + "\n")
-
-            speak_response(result["response"], result.get("voice", {}))
-
-        except KeyboardInterrupt:
-            print("\n\nSigning off.")
-            break
-        except Exception as exc:
-            print(f"Unexpected error: {exc}")
-            time.sleep(1)
+if __name__ == "__main__":
+    main()

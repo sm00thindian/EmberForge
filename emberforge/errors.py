@@ -62,3 +62,17 @@ def audio_invalid(message: str, request_id: str | None = None) -> EmberForgeErro
 
 def audio_too_large(request_id: str | None = None) -> EmberForgeError:
     return EmberForgeError("AUDIO_TOO_LARGE", "Audio file too large", 413, False, request_id)
+
+
+def unauthorized(message: str = "Unauthorized", request_id: str | None = None) -> EmberForgeError:
+    return EmberForgeError("UNAUTHORIZED", message, 401, False, request_id)
+
+
+def rate_limited(request_id: str | None = None) -> EmberForgeError:
+    return EmberForgeError(
+        "RATE_LIMITED",
+        "Too many requests. Slow down and try again.",
+        429,
+        True,
+        request_id,
+    )

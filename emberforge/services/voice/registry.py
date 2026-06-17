@@ -96,8 +96,8 @@ def get_mac_tts_provider(
     """
     Resolve TTS for the Mac voice companion.
 
-    Default is macOS `say`. Set EMBER_MAC_TTS=elevenlabs (or auto) to use
-    ElevenLabs playback on Mac when configured.
+    Default is macOS `say`. Per-session mode is set by start_ember.sh
+    (EMBER_MAC_TTS exported for this run only).
     """
     resolved = settings or get_settings()
     mode = resolve_mac_tts_mode(resolved)

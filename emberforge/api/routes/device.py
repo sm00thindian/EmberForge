@@ -9,7 +9,8 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from emberforge.api.deps import verify_device
 from emberforge.context import ensure_request_id, get_request_id
 from emberforge.errors import audio_invalid, audio_too_large, stt_unavailable
-from emberforge.models.schemas import DeviceTextRequest
+from emberforge.models.schemas import DevicePairConfirmRequest, DeviceTextRequest
+from emberforge.security.runtime import get_security_state
 from emberforge.services.conversation import ConversationResult
 from emberforge.services.converse import ConverseService
 from emberforge.settings import Settings
@@ -18,7 +19,7 @@ DEVICE_AUTH = [Depends(verify_device)]
 
 
 def conversation_payload(result: ConversationResult) -> dict:
-    return {
+    payload = {
         "request_id": result.request_id,
         "transcript": result.transcript,
         "response_text": result.response_text,
@@ -33,9 +34,18 @@ def conversation_payload(result: ConversationResult) -> dict:
         },
         "timestamp": result.timestamp,
     }
+    if result.session_id:
+        payload["session_id"] = result.session_id
+    if result.history_turns:
+        payload["history_turns"] = result.history_turns
+    return payload
 
 
-def create_device_routers(settings: Settings, converse: ConverseService) -> tuple[APIRouter, APIRouter]:
+def create_device_routers(
+    settings: Settings,
+    converse: ConverseService,
+) -> tuple[APIRouter, APIRouter, APIRouter]:
+    pair_router = APIRouter(prefix="/device/v1", tags=["device"])
     meta_router = APIRouter(
         prefix="/device/v1",
         tags=["device"],
@@ -70,10 +80,20 @@ def create_device_routers(settings: Settings, converse: ConverseService) -> tupl
                 "preferred_sample_rate": 16000,
                 "max_upload_bytes": settings.max_audio_bytes,
             },
+            "llm": {
+                "default_model": settings.llm_model,
+                "api": "openai_chat_completions",
+            },
             "persona_selection": ["api_param", "device_config"],
             "auth": {
                 "required": settings.device_auth_required,
                 "scheme": "bearer",
+                "pairing": "POST /admin/v1/pair/code then POST /device/v1/pair/confirm",
+            },
+            "admin_auth": {
+                "remote_production": settings.is_production,
+                "totp_session": bool(settings.admin_totp_secret),
+                "static_token": bool(settings.admin_token),
             },
         }
 
@@ -84,12 +104,32 @@ def create_device_routers(settings: Settings, converse: ConverseService) -> tupl
             "personas": [persona.to_device_dict() for persona in converse.personas.values()],
         }
 
+    @pair_router.post("/pair/confirm")
+    async def device_pair_confirm(request: DevicePairConfirmRequest):
+        pairing = get_security_state()["pairing_codes"]
+        if not pairing.consume(request.code):
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=400, detail="Invalid or expired pairing code")
+
+        registry = get_security_state()["device_registry"]
+        token = registry.pair_device(device_id=request.device_id, name=request.name)
+        return {
+            "device_id": request.device_id,
+            "device_token": token,
+            "message": "Save this token on the device — it will not be shown again.",
+        }
+
     @meta_router.post("/converse/text")
     async def device_converse_text(request: DeviceTextRequest):
+        session_id = request.session_id or request.device_id
         result = await converse.converse_text(
             request.persona,
             request.message,
+            model=request.model,
             request_id=request.request_id,
+            session_id=session_id,
+            clear_history=request.clear_history,
             synthesize_audio=True,
         )
         return conversation_payload(result)
@@ -120,6 +160,7 @@ def create_device_routers(settings: Settings, converse: ConverseService) -> tupl
             persona_id,
             audio_bytes,
             request_id=resolved_request_id,
+            session_id=device_id,
             synthesize_audio=True,
         )
 
@@ -127,4 +168,4 @@ def create_device_routers(settings: Settings, converse: ConverseService) -> tupl
         payload["device_id"] = device_id
         return payload
 
-    return meta_router, audio_router
+    return pair_router, meta_router, audio_router

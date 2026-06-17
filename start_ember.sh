@@ -8,6 +8,8 @@
 #   ./start_ember.sh --text-only
 #   ./start_ember.sh --env .env.local
 #   ./start_ember.sh --non-interactive
+#   ./start_ember.sh --elevenlabs
+#   ./start_ember.sh --mac-tts macos_say
 #
 
 set -euo pipefail
@@ -20,9 +22,13 @@ BACKEND_PORT="${EMBER_BACKEND_PORT:-8000}"
 BACKEND_PID=""
 TEXT_ONLY=-1
 PERSONA=""
+MAC_TTS=""
+LLM_MODEL=""
 NONINTERACTIVE=0
+OPEN_SETUP=0
 RUN_MODE_CHOSEN=0
 PERSONA_CHOSEN=0
+MAC_TTS_CHOSEN=0
 
 usage() {
   cat <<'EOF'
@@ -33,13 +39,19 @@ Options:
   --persona <id>       Persona id (ember, hal_9000, ...)
   --text-only          Start backend only (no voice companion)
   --voice              Start backend + Mac voice companion (default)
+  --mac-tts <mode>     Mac speech: macos_say, elevenlabs, or auto
+  --elevenlabs         Use ElevenLabs for Mac playback (shortcut)
+  --macos-say          Use macOS say / persona voices (shortcut)
+  --model <id>         LLM model override for this session (e.g. grok-3-latest)
   --non-interactive    Fail instead of prompting for missing config
+  --open-setup         Open the setup website in your browser
   -h, --help           Show this help
 
 Without flags, the script will:
   - Pick or create an environment file (.env)
   - Prompt for missing required secrets (XAI_API_KEY)
   - Ask how you want to run (voice vs backend-only) if not specified
+  - Ask Mac TTS engine (macOS say vs ElevenLabs) for voice mode
   - Ask which persona to use if not specified
 EOF
 }
@@ -73,8 +85,39 @@ while [[ $# -gt 0 ]]; do
       fi
       shift 2
       ;;
+    --mac-tts)
+      MAC_TTS="${2:-}"
+      MAC_TTS_CHOSEN=1
+      if [[ -z "$MAC_TTS" ]]; then
+        echo "Usage: ./start_ember.sh --mac-tts <macos_say|elevenlabs|auto>"
+        exit 1
+      fi
+      shift 2
+      ;;
+    --elevenlabs)
+      MAC_TTS="elevenlabs"
+      MAC_TTS_CHOSEN=1
+      shift
+      ;;
+    --macos-say)
+      MAC_TTS="macos_say"
+      MAC_TTS_CHOSEN=1
+      shift
+      ;;
+    --model)
+      LLM_MODEL="${2:-}"
+      if [[ -z "$LLM_MODEL" ]]; then
+        echo "Usage: ./start_ember.sh --model <model-id>"
+        exit 1
+      fi
+      shift 2
+      ;;
     --non-interactive)
       NONINTERACTIVE=1
+      shift
+      ;;
+    --open-setup)
+      OPEN_SETUP=1
       shift
       ;;
     -h|--help)
@@ -292,6 +335,7 @@ load_env() {
   set -a
   # shellcheck disable=SC1090
   source "$ENV_FILE"
+  unset EMBER_MAC_TTS
   set +a
 }
 
@@ -362,13 +406,13 @@ optional_env_status() {
     voice_id="set"
   fi
 
-  local mac_tts="${EMBER_MAC_TTS:-macos_say}"
   echo "Optional config:"
-  echo "  EMBER_MAC_TTS:                   $mac_tts (macos_say | elevenlabs | auto)"
+  echo "  LLM model:                       ${EMBER_LLM_MODEL:-grok-3-latest}"
+  echo "  Mac TTS:                         chosen at startup (not stored in .env)"
   echo "  ELEVENLABS_API_KEY:              $elevenlabs (device/server TTS)"
   echo "  ELEVENLABS_DEFAULT_VOICE_ID:    $voice_id"
   if [[ "$elevenlabs" == "not set" || "$voice_id" == "not set" ]]; then
-    echo "  Mac voice uses macOS say by default. ElevenLabs needs both key + voice id."
+    echo "  ElevenLabs Mac voice needs both key + voice id in .env."
   fi
 }
 
@@ -468,6 +512,100 @@ select_run_mode() {
   done
 }
 
+elevenlabs_ready() {
+  [[ -n "${ELEVENLABS_API_KEY:-}" && -n "${ELEVENLABS_DEFAULT_VOICE_ID:-}" ]]
+}
+
+normalize_mac_tts_mode() {
+  local mode="$1"
+  case "$mode" in
+    macos_say|elevenlabs|auto) printf '%s' "$mode" ;;
+    *)
+      echo "Invalid Mac TTS mode: $mode (use macos_say, elevenlabs, or auto)"
+      exit 1
+      ;;
+  esac
+}
+
+resolve_mac_tts_selection() {
+  local mode="$1"
+  mode="$(normalize_mac_tts_mode "$mode")"
+
+  if [[ "$mode" == "elevenlabs" || "$mode" == "auto" ]] && ! elevenlabs_ready; then
+    if [[ "$mode" == "elevenlabs" ]]; then
+      echo "ElevenLabs is not fully configured (need ELEVENLABS_API_KEY and ELEVENLABS_DEFAULT_VOICE_ID)."
+      echo "Falling back to macos_say."
+    fi
+    mode="macos_say"
+  fi
+
+  if [[ "$mode" == "auto" ]] && elevenlabs_ready; then
+    mode="elevenlabs"
+  fi
+
+  printf '%s' "$mode"
+}
+
+describe_mac_tts_mode() {
+  case "$1" in
+    macos_say) echo "macOS say (persona voices)" ;;
+    elevenlabs) echo "ElevenLabs (configured voice)" ;;
+    auto) echo "auto" ;;
+    *) echo "$1" ;;
+  esac
+}
+
+select_mac_tts_mode() {
+  if [[ "$TEXT_ONLY" -eq 1 ]]; then
+    return 0
+  fi
+
+  if [[ "$MAC_TTS_CHOSEN" -eq 1 ]]; then
+    MAC_TTS="$(resolve_mac_tts_selection "$MAC_TTS")"
+    export EMBER_MAC_TTS="$MAC_TTS"
+    return 0
+  fi
+
+  if [[ "$NONINTERACTIVE" -eq 1 ]]; then
+    MAC_TTS="$(resolve_mac_tts_selection "macos_say")"
+    export EMBER_MAC_TTS="$MAC_TTS"
+    return 0
+  fi
+
+  echo ""
+  echo "How should EmberForge speak on your Mac? (this session only)"
+  echo "  1) macOS say — persona voices (Shelley for Ember, Daniel for HAL)"
+  if elevenlabs_ready; then
+    echo "  2) ElevenLabs — your configured voice (ELEVENLABS_DEFAULT_VOICE_ID)"
+    echo "  3) Auto — ElevenLabs when configured, otherwise macOS say"
+  else
+    echo "  2) ElevenLabs — not configured (set API key + voice ID in .env)"
+    echo "  3) Auto — same as macOS say until ElevenLabs is configured"
+  fi
+
+  local choice=""
+  local picked=""
+  while true; do
+    read -rp "Choice [1]: " choice
+    choice="${choice:-1}"
+    case "$choice" in
+      1) picked="macos_say"; break ;;
+      2)
+        if elevenlabs_ready; then
+          picked="elevenlabs"
+          break
+        fi
+        echo "ElevenLabs is not configured. Choose 1 or 3, or add keys to .env."
+        ;;
+      3) picked="auto"; break ;;
+      *) echo "Invalid choice. Enter 1, 2, or 3." ;;
+    esac
+  done
+
+  MAC_TTS="$(resolve_mac_tts_selection "$picked")"
+  export EMBER_MAC_TTS="$MAC_TTS"
+}
+
 wait_for_backend() {
   local attempts=0
   local max_attempts=40
@@ -491,27 +629,44 @@ start_backend() {
     set -a
     # shellcheck disable=SC1090
     source "$ENV_FILE"
+    unset EMBER_MAC_TTS
     set +a
     export XAI_API_KEY
     export EMBER_BACKEND_PORT="$BACKEND_PORT"
+    if [[ -n "${LLM_MODEL:-}" ]]; then
+      export EMBER_LLM_MODEL="$LLM_MODEL"
+    fi
     exec emberforge serve --host 127.0.0.1 --port "$BACKEND_PORT"
   ) &
   BACKEND_PID=$!
 
   wait_for_backend
   echo "Backend is ready at http://127.0.0.1:${BACKEND_PORT}"
+  echo "Setup UI:       http://127.0.0.1:${BACKEND_PORT}/setup"
+}
+
+open_setup_browser() {
+  local url="http://127.0.0.1:${BACKEND_PORT}/setup"
+  if [[ "$OPEN_SETUP" -eq 1 ]]; then
+    if command -v open >/dev/null 2>&1; then
+      open "$url" >/dev/null 2>&1 || true
+    elif command -v xdg-open >/dev/null 2>&1; then
+      xdg-open "$url" >/dev/null 2>&1 || true
+    fi
+  fi
 }
 
 start_voice_companion() {
   echo ""
   echo "Launching Mac voice companion..."
-  echo "Press ENTER when prompted to talk."
+  echo "Hold SPACE to speak. Tap ENTER for commands."
   echo ""
   (
     cd "$VOICE_DIR"
     export EMBER_BACKEND_URL="${EMBER_BACKEND_URL:-http://127.0.0.1:${BACKEND_PORT}}"
     export EMBER_WHISPER_MODEL="${EMBER_WHISPER_MODEL:-base}"
     export EMBER_PERSONA="${PERSONA}"
+    export EMBER_MAC_TTS="${EMBER_MAC_TTS:-macos_say}"
     export EMBER_INPUT_DEVICE="${EMBER_INPUT_DEVICE:-}"
     exec python mac_voice_companion.py
   )
@@ -520,7 +675,7 @@ start_voice_companion() {
 print_banner() {
   echo "============================================================"
   echo " EmberForge Voice Companion"
-  echo " Release 1.0 backend + Mac voice client"
+  echo " EmberForge v0.2.0 — backend + Mac voice client"
   echo "============================================================"
 }
 
@@ -535,6 +690,10 @@ print_launch_summary() {
   echo "  Environment: ${ENV_FILE#$ROOT_DIR/}"
   echo "  Mode:        $mode"
   echo "  Persona:     ${PERSONA:-ember}"
+  echo "  LLM model:   ${EMBER_LLM_MODEL:-grok-3-latest}"
+  if [[ "$TEXT_ONLY" -eq 0 ]]; then
+    echo "  Mac TTS:     $(describe_mac_tts_mode "${EMBER_MAC_TTS:-macos_say}")"
+  fi
   echo "  Port:        ${BACKEND_PORT}"
   echo ""
 }
@@ -543,12 +702,16 @@ main() {
   print_banner
   select_environment_file
   load_env
+  if [[ -n "$LLM_MODEL" ]]; then
+    export EMBER_LLM_MODEL="$LLM_MODEL"
+  fi
   BACKEND_PORT="${EMBER_BACKEND_PORT:-8000}"
   check_python
   setup_venv
   ensure_api_key
   optional_env_status
   select_run_mode
+  select_mac_tts_mode
   select_persona
   print_launch_summary
 
@@ -557,12 +720,12 @@ main() {
   fi
 
   start_backend
+  open_setup_browser
 
   if [[ "$TEXT_ONLY" -eq 1 ]]; then
     echo "Backend running in text-only mode."
-    echo "Test with:"
-    echo "  curl http://127.0.0.1:${BACKEND_PORT}/version"
-    echo "  curl http://127.0.0.1:${BACKEND_PORT}/personas"
+    echo "Open setup: http://127.0.0.1:${BACKEND_PORT}/setup"
+    echo "Test chat:  use the Test Chat tab in setup, or:"
     echo "  curl -X POST http://127.0.0.1:${BACKEND_PORT}/chat \\"
     echo "    -H 'Content-Type: application/json' \\"
     echo "    -d '{\"message\": \"Hello\", \"persona\": \"${PERSONA}\"}'"

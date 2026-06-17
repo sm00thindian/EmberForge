@@ -35,7 +35,9 @@ All device endpoints live under `/device/v1/`. This version will remain backward
 1. Connect to WiFi
 2. `GET /device/v1/capabilities` — confirm server is reachable and STT is available
 3. `GET /device/v1/personas` — populate persona selector
-4. On button press: record WAV → `POST /device/v1/converse` → play/display result
+4. On button **hold** (push-to-talk): record WAV → `POST /device/v1/converse` → play/display result
+
+Recommended device recording limits: **12s hard cap**, **1.5s trailing silence** fallback, **0.4s** minimum speech. The Mac dev client uses the same semantics with a **30s** cap (`emberforge/client/recording.py`).
 
 ### Audio format
 
@@ -72,15 +74,36 @@ Every converse response returns the same JSON structure:
 
 When server-side TTS is enabled, `voice.audio_base64` or `voice.audio_url` will carry playable audio so the device can speak without local TTS.
 
-## Device auth (optional)
+### JSON Schema (contract)
 
-Set `EMBER_DEVICE_TOKEN` on the backend. Devices send:
+Response shapes are defined in [`schemas/v1/`](schemas/v1/) and validated in CI (`tests/test_device_contract.py`).
+
+## Device auth
+
+In **development** (default), the device API is open unless you set `EMBER_DEVICE_TOKEN`.
+
+In **production** (`EMBER_ENV=production`), every `/device/v1/*` request (except pairing) requires a bearer token.
+
+### Option A — shared token (simple)
+
+Set `EMBER_DEVICE_TOKEN` on the backend (min 16 characters). Devices send:
 
 ```
 Authorization: Bearer <token>
 ```
 
-If unset, the device API is open (fine for local dev on your LAN).
+### Option B — per-device pairing (recommended)
+
+1. On the backend host: `emberforge pair` or open **http://127.0.0.1:8000/setup** → Security & Devices (issues a 6-character code, localhost-only in production)
+2. Device calls `POST /device/v1/pair/confirm`:
+
+```json
+{ "code": "ABC123", "device_id": "esp32-living-room", "name": "Living Room" }
+```
+
+3. Response includes `device_token` — **store it on the device; it is shown once.**
+
+See [`docs/M7_SECURITY.md`](../docs/M7_SECURITY.md) for TOTP admin sessions and rate limits.
 
 ## Firmware scaffold
 

@@ -2,7 +2,7 @@
 
 **Target:** A production-quality backend, fully developable and testable on Mac, with a stable API for consumer-grade devices.
 
-Release 1.0 is the **server software only** — not the ESP32 firmware, not the web dashboard. It is the brain that Mac clients and physical devices talk to.
+Release 1.0 is the **server software only** — not the ESP32 firmware. A **local setup UI** at `/setup` (shipped in v0.2.0) handles hub configuration; consumer devices stay thin clients. The backend is the brain that Mac clients and physical devices talk to.
 
 ---
 
@@ -38,7 +38,7 @@ emberforge/
         └── device.py    # /device/v1/* (hardware)
 ```
 
-**Principle:** Mac and devices share `services/conversation.py` and `ConverseService`. Clients differ in input path (local Whisper vs uploaded WAV) and output rendering (macOS `say`, optional ElevenLabs on Mac via `EMBER_MAC_TTS`, or server MP3 for devices).
+**Principle:** Mac and devices share `services/conversation.py` and `ConverseService`. Clients differ in input path (local Whisper vs uploaded WAV) and output rendering (macOS `say`, optional ElevenLabs on Mac via `start_ember.sh`, or server MP3 for devices).
 
 ---
 
@@ -59,11 +59,11 @@ emberforge/
 - [x] `validate_runtime()` fail-fast on startup
 - [x] `EMBERFORGE_ROOT` for non-standard install paths
 
-### M3 — Tests & CI
+### M3 — Tests & CI ✅
 
 - [x] pytest suite (settings, personas, conversation, API)
 - [x] GitHub Actions CI workflow (`.github/workflows/test.yml`)
-- [ ] Contract tests for `/device/v1/` response shape (JSON schema)
+- [x] Contract tests for `/device/v1/` response shape (JSON schema in `device/schemas/v1/`)
 
 ### M4 — Voice Pipeline Abstraction ✅
 
@@ -86,11 +86,22 @@ emberforge/
 - [x] Deep `/health/ready` (xAI, Whisper, disk, personas, ElevenLabs)
 - [x] Request ID through full pipeline
 
-### M7 — Security
+### M7 — Security ✅
 
-- [ ] Required `EMBER_DEVICE_TOKEN` in production mode
-- [ ] Rate limiting per device/IP
-- [ ] Secrets never logged
+- [x] Required device auth in production (`EMBER_DEVICE_TOKEN` or paired devices)
+- [x] Device pairing flow (`emberforge pair` → `/device/v1/pair/confirm`)
+- [x] Remote admin auth (TOTP session + static token; localhost trusted)
+- [x] Rate limiting per device/IP
+- [x] Secrets never logged
+- [x] Security guide: [`M7_SECURITY.md`](M7_SECURITY.md)
+- [x] Local setup UI for pairing, TOTP, and device revoke (`/setup`, `/admin/v1/devices`)
+
+### Post–Phase 0 features (v0.2.0) ✅
+
+- [x] Multi-turn conversation memory (`session_id`, `EMBER_CONVERSATION_*`)
+- [x] Live context (weather, RSS, `prompts/user_context.md`)
+- [x] On-demand LLM tools (`get_weather`, `get_headlines`, `search_news`)
+- [x] Local setup website (`emberforge/web/`, `/setup/v1/*`)
 
 ### M8 — Observability
 
@@ -105,7 +116,7 @@ emberforge/
 
 ### 1.0 Release Gate
 
-M1–M6 complete, device API stable, Mac voice loop works end-to-end. Remaining gate items: M3 contract tests, M7–M9 (security, observability, packaging).
+M1–M7 complete, M3 contract tests complete, device API stable, Mac voice loop works end-to-end (**Phase 0 complete** — see [`PHASE_0.md`](PHASE_0.md)). Remaining Release 1.0 gate: M8–M9 (observability, packaging).
 
 ---
 
@@ -161,8 +172,11 @@ curl -X POST http://127.0.0.1:8000/device/v1/converse/text \
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `XAI_API_KEY` | — | xAI / Grok API key (**required**) |
+| `XAI_API_KEY` | — | LLM API key (**required** for default xAI / Grok) |
 | `GROK_API_KEY` | — | Legacy alias for `XAI_API_KEY` |
+| `EMBER_LLM_MODEL` | `grok-3-latest` | LLM model id |
+| `EMBER_LLM_API_URL` | `https://api.x.ai/v1/chat/completions` | OpenAI-compatible chat endpoint |
+| `EMBER_LLM_API_KEY` | — | Optional separate LLM key (falls back to `XAI_API_KEY`) |
 | `EMBER_HOST` | `127.0.0.1` | Server bind host |
 | `EMBER_BACKEND_PORT` | `8000` | Server bind port |
 | `EMBER_WHISPER_MODEL` | `base` | Server-side Whisper model |
@@ -177,7 +191,14 @@ curl -X POST http://127.0.0.1:8000/device/v1/converse/text \
 | `XAI_RETRY_BASE_SECONDS` | `0.5` | Exponential backoff base delay for xAI |
 | `ELEVENLABS_MAX_RETRIES` | `2` | Retries for transient ElevenLabs failures |
 | `EMBER_HEALTH_DISK_MIN_BYTES` | `100000000` | Minimum free disk for `/health/ready` |
-| `EMBER_MAC_TTS` | `macos_say` | Mac client TTS: `macos_say`, `elevenlabs`, or `auto` |
+| `EMBER_CONTEXT_ENABLED` | `false` | Weather + RSS + profile per session |
+| `EMBER_LAT` / `EMBER_LON` | — | Coordinates for weather context |
+| `EMBER_RSS_FEEDS` | — | Comma-separated RSS URLs |
+| `EMBER_TOOLS_ENABLED` | `true` | On-demand weather/news tools |
+| `EMBER_CONVERSATION_MAX_TURNS` | `20` | Multi-turn memory per `session_id` |
+| `EMBER_ENV` | `development` | `production` enables device auth + rate limits |
+
+Mac TTS mode is **not** in `.env` — use `./start_ember.sh` interactively or `--macos-say` / `--elevenlabs` / `--mac-tts auto`.
 
 ---
 
@@ -190,8 +211,20 @@ curl -X POST http://127.0.0.1:8000/device/v1/converse/text \
 | GET | `/health` | Liveness |
 | GET | `/health/ready` | Deep readiness (xAI, Whisper, disk) |
 | GET | `/version` | Server + device API version |
+| GET | `/setup` | Local setup SPA |
+| GET | `/setup/v1/status` | Hub readiness for setup UI |
 | GET | `/personas` | Full persona list |
-| POST | `/chat` | Text conversation |
+| POST | `/chat` | Text conversation (`session_id`, optional TTS flags) |
+
+### Admin / setup (localhost write in production)
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/admin/v1/pair/code` | Issue device pairing code |
+| GET | `/admin/v1/devices` | List paired devices |
+| DELETE | `/admin/v1/devices/{id}` | Revoke a device |
+| GET | `/admin/v1/totp/setup` | TOTP provisioning URI |
+| PATCH | `/setup/v1/config` | Update `.env` from setup UI |
 
 ### Consumer devices (stable)
 
@@ -208,7 +241,7 @@ Device contract documentation: `device/README.md`
 
 ## Versioning Policy
 
-- **Server package:** semver in `emberforge/__init__.py` (currently `0.1.0`, targeting `1.0.0`)
+- **Server package:** semver in `emberforge/__init__.py` (currently `0.2.0`, targeting `1.0.0`)
 - **Device API:** `/device/v1/` — breaking changes require `/device/v2/`
 - Devices should call `/version` and `/device/v1/capabilities` on boot
 
@@ -218,10 +251,12 @@ Device contract documentation: `device/README.md`
 
 | Component | Version |
 |-----------|---------|
-| Package | `0.1.0` |
+| Package | `0.2.0` |
 | Device API | `v1` |
-| Milestones complete | M1, M2, M3, M4, M5, M6 |
+| Milestones complete | M1–M7 (incl. M3 device contract tests) |
+| Phase 0 (Mac companion) | ✅ Complete — [`PHASE_0.md`](PHASE_0.md) |
+| Local setup UI | ✅ `/setup` |
 
 **Changelog:** [`CHANGELOG.md`](../CHANGELOG.md) (Keep a Changelog format)
 
-**Next step:** M7 security (required device token in production, rate limiting).
+**Next step:** M8 observability (structured JSON logging, per-request timing).

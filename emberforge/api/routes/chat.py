@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from emberforge.api.deps import verify_admin
 from emberforge.context import get_request_id
 from emberforge.models.schemas import ChatRequest, ChatResponse
 from emberforge.services.conversation import ConversationResult
@@ -18,12 +19,15 @@ def chat_from_result(result: ConversationResult) -> ChatResponse:
         persona=result.persona_id,
         persona_name=result.persona_name,
         voice=result.voice,
+        model=result.model,
         request_id=result.request_id,
+        session_id=result.session_id,
+        history_turns=result.history_turns,
     )
 
 
 def create_chat_router(settings: Settings, converse: ConverseService) -> APIRouter:
-    router = APIRouter(tags=["chat"])
+    router = APIRouter(tags=["chat"], dependencies=[Depends(verify_admin)])
     personas = converse.personas
 
     @router.get("/personas")
@@ -39,7 +43,12 @@ def create_chat_router(settings: Settings, converse: ConverseService) -> APIRout
             request.persona,
             request.message,
             temperature=request.temperature,
+            model=request.model,
             request_id=get_request_id() or None,
+            session_id=request.session_id,
+            clear_history=request.clear_history,
+            synthesize_audio=request.synthesize_audio,
+            play_audio=request.play_audio,
         )
         return chat_from_result(result)
 

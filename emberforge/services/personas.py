@@ -36,6 +36,7 @@ class Persona:
     voice: VoiceConfig
     temperature: float
     type: str
+    model: str | None = None
     inspired_by: str | None = None
     disclaimer: str | None = None
 
@@ -64,6 +65,8 @@ class Persona:
             },
             "temperature": self.temperature,
         }
+        if self.model:
+            payload["model"] = self.model
         if self.inspired_by:
             payload["inspired_by"] = self.inspired_by
         if self.disclaimer:
@@ -88,6 +91,7 @@ def _load_persona_file(path: Path, project_root: Path) -> Persona:
         voice=VoiceConfig.from_dict(data.get("voice", {})),
         temperature=float(data.get("temperature", 0.7)),
         type=data.get("type", "companion"),
+        model=data.get("model"),
         inspired_by=data.get("inspired_by"),
         disclaimer=data.get("disclaimer"),
     )

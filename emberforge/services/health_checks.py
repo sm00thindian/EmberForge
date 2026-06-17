@@ -7,6 +7,7 @@ from typing import Any
 
 import httpx
 
+from emberforge.services.llm import llm_models_probe_url
 from emberforge.services.personas import load_personas
 from emberforge.services.voice.registry import get_stt_provider
 from emberforge.settings import Settings
@@ -19,29 +20,52 @@ def _component(status: str, **extra: Any) -> dict[str, Any]:
 
 
 async def check_xai(settings: Settings) -> dict[str, Any]:
-    if not settings.resolved_api_key:
-        return _component("fail", message="XAI_API_KEY is not configured")
+    if not settings.resolved_llm_api_key:
+        return _component("fail", message="LLM API key is not configured")
 
-    url = settings.xai_api_url.rsplit("/", 1)[0] + "/models"
-    headers = {"Authorization": f"Bearer {settings.resolved_api_key}"}
+    url = llm_models_probe_url(settings.llm_api_url)
+    headers = {"Authorization": f"Bearer {settings.resolved_llm_api_key}"}
 
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(url, headers=headers)
     except httpx.TimeoutException:
-        return _component("fail", message="xAI request timed out", reachable=False)
+        return _component("fail", message="LLM request timed out", reachable=False)
     except httpx.TransportError as exc:
         return _component("fail", message=str(exc), reachable=False)
 
     reachable = True
     if response.status_code == 401:
-        return _component("fail", message="xAI API key rejected", reachable=True)
+        return _component(
+            "fail",
+            message="LLM API key rejected",
+            reachable=True,
+            model=settings.llm_model,
+            api_url=settings.llm_api_url,
+        )
     if response.status_code >= 500:
-        return _component("degraded", message=f"xAI returned HTTP {response.status_code}", reachable=True)
+        return _component(
+            "degraded",
+            message=f"LLM returned HTTP {response.status_code}",
+            reachable=True,
+            model=settings.llm_model,
+            api_url=settings.llm_api_url,
+        )
     if response.status_code >= 400:
-        return _component("ok", message=f"xAI reachable (HTTP {response.status_code})", reachable=True)
+        return _component(
+            "ok",
+            message=f"LLM reachable (HTTP {response.status_code})",
+            reachable=True,
+            model=settings.llm_model,
+            api_url=settings.llm_api_url,
+        )
 
-    return _component("ok", reachable=reachable)
+    return _component(
+        "ok",
+        reachable=reachable,
+        model=settings.llm_model,
+        api_url=settings.llm_api_url,
+    )
 
 
 def check_whisper(settings: Settings) -> dict[str, Any]:

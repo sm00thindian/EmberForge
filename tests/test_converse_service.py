@@ -34,6 +34,7 @@ async def test_converse_text(monkeypatch, converse: ConverseService):
             voice={"provider": "macos_say"},
             display_lines=["Hello back"],
             timestamp="2026-06-16T12:00:00+00:00",
+            model="grok-3-latest",
         )
 
     monkeypatch.setattr(
@@ -60,6 +61,7 @@ async def test_converse_text_synthesize_audio(monkeypatch, converse: ConverseSer
             voice={"provider": "macos_say"},
             display_lines=["Device audio reply"],
             timestamp="2026-06-16T12:00:00+00:00",
+            model="grok-3-latest",
         )
 
     async def fake_synthesize(text, voice):
@@ -91,6 +93,60 @@ async def test_converse_text_synthesize_audio(monkeypatch, converse: ConverseSer
 
 
 @pytest.mark.asyncio
+async def test_converse_text_play_audio_fallback(monkeypatch, converse: ConverseService):
+    async def fake_generate(persona, message, **kwargs):
+        return ConversationResult(
+            request_id="req-4",
+            transcript=message,
+            response_text="Spoken reply",
+            persona_id=persona.id,
+            persona_name=persona.name,
+            voice={"provider": "macos_say"},
+            display_lines=["Spoken reply"],
+            timestamp="2026-06-16T12:00:00+00:00",
+            model="grok-3-latest",
+        )
+
+    async def fake_synthesize(text, voice):
+        from emberforge.services.voice.base import TTSResult
+
+        return TTSResult(
+            provider="macos_say",
+            voice=voice.voice,
+            rate=voice.rate,
+            played_locally=True,
+        )
+
+    monkeypatch.setattr(
+        "emberforge.services.converse.generate_reply",
+        AsyncMock(side_effect=fake_generate),
+    )
+
+    mock_device_tts = MagicMock()
+    mock_device_tts.produces_audio = lambda: False
+    monkeypatch.setattr(
+        "emberforge.services.converse.get_device_tts_provider",
+        lambda voice, settings: (mock_device_tts, voice),
+    )
+
+    mock_mac_tts = AsyncMock()
+    mock_mac_tts.synthesize = fake_synthesize
+    monkeypatch.setattr(
+        "emberforge.services.converse.get_tts_provider",
+        lambda voice, settings: mock_mac_tts,
+    )
+
+    result = await converse.converse_text(
+        "ember",
+        "Hi",
+        synthesize_audio=True,
+        play_audio=True,
+    )
+    assert result.voice["played_locally"] is True
+    assert result.voice.get("audio_base64") is None
+
+
+@pytest.mark.asyncio
 async def test_converse_audio(monkeypatch, converse: ConverseService):
     async def fake_generate(persona, message, **kwargs):
         return ConversationResult(
@@ -102,6 +158,7 @@ async def test_converse_audio(monkeypatch, converse: ConverseService):
             voice={"provider": "macos_say"},
             display_lines=["Audio reply"],
             timestamp="2026-06-16T12:00:00+00:00",
+            model="grok-3-latest",
         )
 
     monkeypatch.setattr(
