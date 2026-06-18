@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from emberforge import __version__
+from emberforge.runtime.platform import macos_say_available, running_in_container, runtime_platform
 from emberforge.services.personas import load_personas
 from emberforge.settings import Settings
 
@@ -32,6 +33,8 @@ _CONFIG_KEYS = (
     "ELEVENLABS_API_KEY",
     "ELEVENLABS_DEFAULT_VOICE_ID",
     "ELEVENLABS_MODEL",
+    "ELEVENLABS_SPEED",
+    "ELEVENLABS_SENTENCE_PAUSE_SECONDS",
     "EMBER_ENV",
     "EMBER_CONTEXT_ENABLED",
     "EMBER_LAT",
@@ -168,6 +171,9 @@ def build_setup_status(settings: Settings) -> dict:
         "llm_provider": settings.llm_provider,
         "llm_model": settings.llm_model,
         "server_tts_available": settings.server_tts_available,
+        "macos_say_available": macos_say_available(),
+        "running_in_container": running_in_container(),
+        "runtime_platform": runtime_platform(),
         "admin_auth_configured": settings.admin_auth_configured,
         "totp_configured": bool(settings.admin_totp_secret),
         "device_auth_required": settings.device_auth_required,

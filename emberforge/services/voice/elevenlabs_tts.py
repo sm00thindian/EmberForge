@@ -13,6 +13,7 @@ from emberforge.http.retry import is_retryable_status, post_with_retry
 from emberforge.services.personas import VoiceConfig
 from emberforge.services.voice.base import TTSProvider, TTSResult
 from emberforge.services.voice.profiles import get_voice_profile
+from emberforge.services.voice.tts_text import apply_sentence_pauses, prepare_tts_text
 from emberforge.settings import Settings
 
 
@@ -52,7 +53,8 @@ class ElevenLabsTTS(TTSProvider):
         return digest
 
     async def synthesize(self, text: str, voice: VoiceConfig) -> TTSResult:
-        cleaned = text.replace("\n", " ").strip()
+        cleaned = prepare_tts_text(text, self._settings)
+        cleaned = apply_sentence_pauses(cleaned, self._settings.elevenlabs_sentence_pause_seconds)
         if not cleaned:
             return TTSResult(
                 provider=voice.provider,
@@ -93,6 +95,9 @@ class ElevenLabsTTS(TTSProvider):
         payload: dict[str, Any] = {
             "text": text,
             "model_id": self._settings.elevenlabs_model,
+            "voice_settings": {
+                "speed": self._settings.elevenlabs_speed,
+            },
         }
 
         try:

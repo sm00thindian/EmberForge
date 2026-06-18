@@ -91,18 +91,107 @@ async function loadStatus() {
   const status = await api("/setup/v1/status");
   _lastSetupStatus = status;
   renderDashboard(status);
-  updateChatVoiceHint(status);
+  syncChatTtsUi(status);
   return status;
+}
+
+const CHAT_TTS_STORAGE_KEY = "emberforge-setup-chat-tts";
+
+function getChatTtsMode() {
+  return $("#chat-tts-mode")?.value === "macos_say" ? "macos_say" : "elevenlabs";
+}
+
+function getChatVoiceFlags() {
+  const voiceEnabled = $("#chat-voice")?.checked ?? false;
+  if (!voiceEnabled) {
+    return { synthesize_audio: false, play_audio: false };
+  }
+  if (getChatTtsMode() === "macos_say") {
+    return { synthesize_audio: false, play_audio: true };
+  }
+  return { synthesize_audio: true, play_audio: false };
+}
+
+function persistChatTtsMode() {
+  try {
+    localStorage.setItem(CHAT_TTS_STORAGE_KEY, getChatTtsMode());
+  } catch {
+    /* private browsing / storage full */
+  }
+}
+
+function restoreChatTtsMode() {
+  try {
+    const saved = localStorage.getItem(CHAT_TTS_STORAGE_KEY);
+    const select = $("#chat-tts-mode");
+    if (saved && select && [...select.options].some((o) => o.value === saved)) {
+      select.value = saved;
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function pickFallbackChatTtsMode(status) {
+  if (status?.server_tts_available) return "elevenlabs";
+  if (status?.macos_say_available) return "macos_say";
+  return "elevenlabs";
+}
+
+function syncChatTtsUi(status = _lastSetupStatus) {
+  const row = $("#chat-tts-row");
+  const modeSelect = $("#chat-tts-mode");
+  const voiceOn = $("#chat-voice")?.checked ?? false;
+  if (row) row.hidden = !voiceOn;
+  if (modeSelect) {
+    const elevenOption = modeSelect.querySelector('option[value="elevenlabs"]');
+    const macSayOption = modeSelect.querySelector('option[value="macos_say"]');
+    const elevenReady = Boolean(status?.server_tts_available);
+    const macSayReady = Boolean(status?.macos_say_available);
+    if (elevenOption) elevenOption.disabled = !elevenReady;
+    if (macSayOption) macSayOption.disabled = !macSayReady;
+    const current = modeSelect.value;
+    const currentDisabled =
+      (current === "elevenlabs" && !elevenReady) ||
+      (current === "macos_say" && !macSayReady);
+    if (currentDisabled) {
+      modeSelect.value = pickFallbackChatTtsMode(status);
+      persistChatTtsMode();
+    }
+  }
+  updateChatVoiceHint(status);
 }
 
 function updateChatVoiceHint(status) {
   const hint = $("#chat-voice-hint");
   if (!hint) return;
-  if (status?.server_tts_available) {
-    hint.textContent = "ElevenLabs will play in the browser. Without it, macOS say plays on this hub's speakers.";
-  } else {
-    hint.textContent = "No ElevenLabs key — responses use macOS say on this hub, or browser speech if unavailable.";
+  const voiceOn = $("#chat-voice")?.checked ?? false;
+  if (!voiceOn) {
+    hint.textContent = "Voice off — text only.";
+    return;
   }
+  const mode = getChatTtsMode();
+  if (mode === "elevenlabs") {
+    if (status?.server_tts_available) {
+      hint.textContent = "ElevenLabs MP3 plays in your browser (use ▶ to replay).";
+    } else {
+      hint.textContent = "ElevenLabs not configured — add API key and voice ID under API Keys.";
+    }
+    return;
+  }
+  if (status?.macos_say_available) {
+    hint.textContent = "macOS say plays on this hub's speakers.";
+    return;
+  }
+  if (status?.running_in_container) {
+    hint.textContent = "macOS say is unavailable in Docker — use ElevenLabs or turn voice off.";
+    return;
+  }
+  if (status?.runtime_platform && status.runtime_platform !== "darwin") {
+    hint.textContent = "macOS say requires the backend on a Mac — use ElevenLabs here.";
+    return;
+  }
+  hint.textContent = "macOS say is not available on this hub.";
 }
 
 function updateLlmProviderHint() {
@@ -422,6 +511,10 @@ function voiceBadge(voice, mode) {
   return "";
 }
 
+function afterNextPaint(callback) {
+  requestAnimationFrame(() => requestAnimationFrame(callback));
+}
+
 function playChatVoice(bubbleId, voice, text) {
   const cached = _chatPlayback.get(bubbleId);
   if (cached?.type === "mp3" && cached.url) {
@@ -447,13 +540,13 @@ function playChatVoice(bubbleId, voice, text) {
   speakInBrowser(text);
 }
 
-function appendAssistantBubble(log, data) {
+function appendAssistantBubble(log, data, voiceFlags = {}) {
   const bubbleId = `bubble-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const voice = data.voice || {};
   const text = data.response || "";
   let mode = "none";
   if (voice.audio_base64) mode = "mp3";
-  else if (voice.played_locally) mode = "hub";
+  else if (voice.played_locally || voiceFlags.play_audio) mode = "hub";
   else if ($("#chat-voice")?.checked) mode = "browser-tts";
 
   if (mode === "mp3") {
@@ -482,13 +575,15 @@ function appendAssistantBubble(log, data) {
   const replay = log.querySelector(`[data-replay="${bubbleId}"]`);
   replay?.addEventListener("click", () => playChatVoice(bubbleId, voice, text));
 
-  if ($("#chat-voice")?.checked) {
-    if (mode === "mp3") playChatVoice(bubbleId, voice, text);
-    else if (mode === "hub") { /* already played on server */ }
-    else if (mode === "browser-tts") speakInBrowser(text);
-  }
-
   log.scrollTop = log.scrollHeight;
+
+  if ($("#chat-voice")?.checked) {
+    afterNextPaint(() => {
+      if (mode === "mp3") playChatVoice(bubbleId, voice, text);
+      else if (mode === "browser-tts") speakInBrowser(text);
+      // hub (macOS say): server plays after response; text is already visible
+    });
+  }
 }
 
 $("#test-persona")?.addEventListener("change", () => {
@@ -505,15 +600,25 @@ $("#chat-clear-btn")?.addEventListener("click", () => {
   resetChatSession({ clearLog: true });
 });
 
+$("#chat-voice")?.addEventListener("change", () => syncChatTtsUi());
+
+$("#chat-tts-mode")?.addEventListener("change", () => {
+  persistChatTtsMode();
+  syncChatTtsUi();
+});
+
 $("#chat-form")?.addEventListener("submit", async (e) => {
   e.preventDefault();
   const message = $("#chat-message").value.trim();
   if (!message) return;
   const persona = $("#test-persona").value;
-  const voiceEnabled = $("#chat-voice")?.checked ?? false;
+  const voiceFlags = getChatVoiceFlags();
   const log = $("#chat-log");
   log.innerHTML += `<div class="chat-bubble user"><div class="who">You</div>${escapeHtml(message)}</div>`;
   $("#chat-message").value = "";
+  const thinkingId = `thinking-${Date.now()}`;
+  log.innerHTML += `<div class="chat-bubble assistant thinking" id="${thinkingId}"><div class="who">${escapeHtml($("#test-persona").selectedOptions[0]?.text || "Ember")}</div>…</div>`;
+  log.scrollTop = log.scrollHeight;
   try {
     const data = await api("/chat", {
       method: "POST",
@@ -521,16 +626,17 @@ $("#chat-form")?.addEventListener("submit", async (e) => {
         message,
         persona,
         session_id: _chatSessionId,
-        synthesize_audio: voiceEnabled,
-        play_audio: voiceEnabled,
+        ...voiceFlags,
       }),
     });
     if (data.session_id) _chatSessionId = data.session_id;
     _chatSessionPersona = persona;
     persistChatSession();
     updateChatSessionHint(data.history_turns || 0);
-    appendAssistantBubble(log, data);
+    document.getElementById(thinkingId)?.remove();
+    appendAssistantBubble(log, data, voiceFlags);
   } catch (err) {
+    document.getElementById(thinkingId)?.remove();
     log.innerHTML += `<div class="chat-bubble assistant"><div class="who">Error</div>${escapeHtml(err.message)}</div>`;
   }
 });
@@ -538,6 +644,7 @@ $("#chat-form")?.addEventListener("submit", async (e) => {
 async function boot() {
   initNav();
   restoreChatSession();
+  restoreChatTtsMode();
   try {
     await Promise.all([loadStatus(), loadConfig(), loadProfile(), loadPersonas(), loadDevices()]);
   } catch (err) {

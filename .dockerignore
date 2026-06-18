@@ -1,0 +1,53 @@
+# Virtualenv and local tooling
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# Git and editor
+.git/
+.gitignore
+.github/
+.cursor/
+*.swp
+*.swo
+.DS_Store
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# Runtime / local state (compose uses named volumes instead)
+.emberforge/
+logs/
+*.log
+
+# Tests and docs (not needed in the image)
+tests/
+docs/
+phase-0-brain/
+firmware/
+deploy/
+
+# Mac client / dev-only (backend image only)
+scripts/
+backend/
+
+# Large or generated voice samples (mount voices/ at runtime if needed)
+voices/custom/*/samples/
+voices/custom/*/*.wav
+voices/custom/*/*.mp3
+
+# Compose / image build files
+docker-compose.yml
+Dockerfile
+.dockerignore

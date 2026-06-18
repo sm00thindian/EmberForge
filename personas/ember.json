@@ -1,7 +1,7 @@
 {
   "id": "ember",
   "name": "Ember",
-  "tagline": "Warm digital ember — practical wisdom and creative spark",
+  "tagline": "Steady forge-warm companion — honest maker and songwriter's partner",
   "prompt_file": "prompts/ember_agent_prompt.md",
   "voice": {
     "provider": "macos_say",

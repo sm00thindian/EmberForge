@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 
 from emberforge.api.deps import verify_admin
 from emberforge.context import get_request_id
 from emberforge.models.schemas import ChatRequest, ChatResponse
 from emberforge.services.conversation import ConversationResult
 from emberforge.services.converse import ConverseService
+from emberforge.services.voice.registry import get_tts_provider
 from emberforge.settings import Settings
+
+
+async def _play_hub_speech(converse: ConverseService, persona_id: str, text: str) -> None:
+    """Play macOS say after the chat response has been sent to the client."""
+    persona = converse.resolve_persona(persona_id)
+    tts = get_tts_provider(persona.voice, converse.settings)
+    await tts.synthesize(text, persona.voice)
 
 
 def chat_from_result(result: ConversationResult) -> ChatResponse:
@@ -38,7 +46,9 @@ def create_chat_router(settings: Settings, converse: ConverseService) -> APIRout
         }
 
     @router.post("/chat", response_model=ChatResponse)
-    async def chat(request: ChatRequest):
+    async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
+        # Hub speak (macOS say) blocks for the full utterance — defer so text renders first.
+        defer_hub_playback = request.play_audio and not request.synthesize_audio
         result = await converse.converse_text(
             request.persona,
             request.message,
@@ -48,8 +58,15 @@ def create_chat_router(settings: Settings, converse: ConverseService) -> APIRout
             session_id=request.session_id,
             clear_history=request.clear_history,
             synthesize_audio=request.synthesize_audio,
-            play_audio=request.play_audio,
+            play_audio=request.play_audio and not defer_hub_playback,
         )
+        if defer_hub_playback:
+            background_tasks.add_task(
+                _play_hub_speech,
+                converse,
+                request.persona,
+                result.response_text,
+            )
         return chat_from_result(result)
 
     return router

@@ -15,13 +15,39 @@ from emberforge.settings import Settings
 
 @pytest.fixture
 def eleven_settings(monkeypatch, test_settings: Settings) -> Settings:
+    from emberforge.services.voice.tts_text import load_pronunciation_map
     from emberforge.settings import get_settings
 
+    load_pronunciation_map.cache_clear()
     monkeypatch.setenv("XAI_API_KEY", test_settings.xai_api_key)
     monkeypatch.setenv("ELEVENLABS_API_KEY", "test-eleven-key")
     monkeypatch.setenv("ELEVENLABS_DEFAULT_VOICE_ID", "default-voice-123")
     get_settings.cache_clear()
     return Settings()
+
+
+@pytest.mark.asyncio
+async def test_elevenlabs_synthesize_applies_pronunciations_and_speed(eleven_settings: Settings, monkeypatch):
+    import httpx
+
+    captured: dict = {}
+
+    async def fake_post_with_retry(client, url, **kwargs):
+        captured.update(kwargs)
+        return httpx.Response(200, content=b"mp3")
+
+    monkeypatch.setattr("emberforge.services.voice.elevenlabs_tts.post_with_retry", fake_post_with_retry)
+
+    tts = ElevenLabsTTS(eleven_settings)
+    voice = VoiceConfig(provider="elevenlabs", voice="voice-abc")
+    result = await tts.synthesize("Hello Shana. Welcome back.", voice)
+
+    payload = captured["json"]
+    assert payload["voice_settings"]["speed"] == pytest.approx(0.9)
+    assert "Hello Shanna" in payload["text"]
+    assert "Welcome back." in payload["text"]
+    assert '<break time="0.40s" />' in payload["text"]
+    assert result.audio_bytes == b"mp3"
 
 
 @pytest.mark.asyncio

@@ -85,7 +85,8 @@ See [`voices/README.md`](../voices/README.md) for the full voice pipeline.
 ```bash
 source .venv/bin/activate
 pip install -e ".[dev,mac]"
-emberforge serve --host 127.0.0.1 --port 8000
+emberforge serve --host 0.0.0.0 --port 8000
+# localhost-only: emberforge serve --host 127.0.0.1 --port 8000
 
 # new terminal
 cd phase-0-brain && EMBER_PERSONA=hal_9000 python mac_voice_companion.py

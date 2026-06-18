@@ -186,7 +186,7 @@ curl -X POST http://127.0.0.1:8000/device/v1/converse/text \
 | `EMBER_LLM_API_URL` | provider default | OpenAI-compatible chat endpoint |
 | `EMBER_LLM_API_KEY` | — | Optional separate LLM key (falls back to provider key) |
 | `EMBER_LOG_JSON` | `false` | Emit structured JSON logs (recommended in production) |
-| `EMBER_HOST` | `127.0.0.1` | Server bind host |
+| `EMBER_HOST` | `0.0.0.0` | Server bind host (`127.0.0.1` for localhost-only) |
 | `EMBER_BACKEND_PORT` | `8000` | Server bind port |
 | `EMBER_WHISPER_MODEL` | `base` | Server-side Whisper model |
 | `EMBER_DEVICE_TOKEN` | — | Optional device bearer token |

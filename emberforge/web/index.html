@@ -157,8 +157,17 @@
           <p class="hint" id="chat-session-hint">New session — context builds as you chat</p>
           <label class="checkbox">
             <input type="checkbox" id="chat-voice" checked />
-            Speak responses (ElevenLabs in browser, or macOS say on this Mac)
+            Speak responses
           </label>
+          <div class="chat-toolbar chat-tts-row" id="chat-tts-row">
+            <label>
+              Voice engine
+              <select id="chat-tts-mode">
+                <option value="elevenlabs">ElevenLabs (plays in browser)</option>
+                <option value="macos_say">macOS say (hub speakers)</option>
+              </select>
+            </label>
+          </div>
           <p class="hint" id="chat-voice-hint"></p>
           <div class="chat-log" id="chat-log"></div>
           <form id="chat-form" class="chat-input">

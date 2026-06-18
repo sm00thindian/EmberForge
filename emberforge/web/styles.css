@@ -307,6 +307,7 @@ code {
 
 .chat-bubble.user { color: var(--muted); }
 .chat-bubble.assistant { color: var(--text); }
+.chat-bubble.thinking { color: var(--muted); font-style: italic; }
 .chat-bubble .who { font-size: 0.75rem; color: var(--ember); margin-bottom: 0.15rem; }
 
 .chat-bubble-head {
@@ -332,6 +333,10 @@ code {
   font-size: 0.7rem;
   color: var(--muted);
   margin-top: 0.35rem;
+}
+
+.chat-tts-row {
+  margin-top: 0.5rem;
 }
 
 .chat-toolbar {

@@ -9,7 +9,7 @@
     <string>/path/to/EmberForge/.venv/bin/emberforge</string>
     <string>serve</string>
     <string>--host</string>
-    <string>127.0.0.1</string>
+    <string>0.0.0.0</string>
     <string>--port</string>
     <string>8000</string>
   </array>
@@ -19,6 +19,8 @@
   <dict>
     <key>EMBERFORGE_ROOT</key>
     <string>/path/to/EmberForge</string>
+    <key>EMBER_HOST</key>
+    <string>0.0.0.0</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>

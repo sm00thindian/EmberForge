@@ -12,6 +12,7 @@ import pyotp
 import uvicorn
 
 from emberforge import __version__
+from emberforge.network import format_serve_urls, local_client_host, primary_lan_ipv4
 from emberforge.observability.logging import configure_logging
 from emberforge.security.totp import provisioning_uri
 from emberforge.services.context_setup import ensure_context_location
@@ -31,8 +32,10 @@ def cmd_serve(args: argparse.Namespace) -> int:
     port = args.port or settings.port
     reload = args.reload
 
-    print(f"Starting EmberForge {__version__} on http://{host}:{port}")
-    print(f"Setup UI: http://{host}:{port}/setup")
+    bind_label = host if host not in {"0.0.0.0", "::"} else "all interfaces"
+    print(f"Starting EmberForge {__version__} on {bind_label} port {port}")
+    for line in format_serve_urls(host, port):
+        print(line)
     uvicorn.run(
         "emberforge.api.app:app",
         host=host,
@@ -48,7 +51,12 @@ def cmd_check(args: argparse.Namespace) -> int:
     print(f"EmberForge {__version__} configuration check")
     print(f"  project_root:   {settings.project_root}")
     print(f"  personas_dir:   {settings.personas_dir}")
+    print(f"  bind_host:      {settings.host}")
     print(f"  ember_env:      {settings.ember_env}")
+    if settings.host in {"0.0.0.0", "::"}:
+        lan_ip = primary_lan_ipv4()
+        if lan_ip:
+            print(f"  lan_setup:      http://{lan_ip}:{settings.port}/setup")
     print(f"  xai_api_key:    {'set' if settings.resolved_api_key else 'MISSING'}")
     print(f"  llm_provider:   {settings.llm_provider}")
     print(f"  llm_model:      {settings.llm_model}")
@@ -68,6 +76,8 @@ def cmd_check(args: argparse.Namespace) -> int:
         feeds = settings.rss_feed_urls
         print(f"  rss_feeds:      {len(feeds)} configured" if feeds else "  rss_feeds:      none")
     print(f"  tools:          {'on' if settings.tools_enabled else 'off'}")
+    if settings.server_tts_available:
+        print(f"  elevenlabs:     configured (speed {settings.elevenlabs_speed})")
     if settings.tools_enabled and not settings.rss_feed_urls:
         print("  WARNING:       EMBER_RSS_FEEDS not set — news tools will not work")
 
@@ -93,7 +103,7 @@ def cmd_check(args: argparse.Namespace) -> int:
 def _backend_base_url(settings: Settings, override: str | None) -> str:
     if override:
         return override.rstrip("/")
-    return f"http://{settings.host}:{settings.port}"
+    return f"http://{local_client_host(settings.host)}:{settings.port}"
 
 
 def cmd_pair(args: argparse.Namespace) -> int:

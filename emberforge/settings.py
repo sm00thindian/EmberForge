@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     xai_retry_base_seconds: float = Field(default=0.5, validation_alias="XAI_RETRY_BASE_SECONDS")
 
     # Server
-    host: str = Field(default="127.0.0.1", validation_alias="EMBER_HOST")
+    host: str = Field(default="0.0.0.0", validation_alias="EMBER_HOST")
     port: int = Field(default=8000, validation_alias="EMBER_BACKEND_PORT")
     log_level: str = "INFO"
     log_json: bool = Field(default=False, validation_alias="EMBER_LOG_JSON")
@@ -57,7 +57,16 @@ class Settings(BaseSettings):
     elevenlabs_api_key: str = Field(default="", validation_alias="ELEVENLABS_API_KEY")
     elevenlabs_api_url: str = "https://api.elevenlabs.io/v1"
     elevenlabs_model: str = Field(default="eleven_turbo_v2_5", validation_alias="ELEVENLABS_MODEL")
+    elevenlabs_speed: float = Field(default=0.9, validation_alias="ELEVENLABS_SPEED")
+    elevenlabs_sentence_pause_seconds: float = Field(
+        default=0.4,
+        validation_alias="ELEVENLABS_SENTENCE_PAUSE_SECONDS",
+    )
     elevenlabs_default_voice_id: str = Field(default="", validation_alias="ELEVENLABS_DEFAULT_VOICE_ID")
+    tts_pronunciations_file: str = Field(
+        default="prompts/tts_pronunciations.json",
+        validation_alias="EMBER_TTS_PRONUNCIATIONS_FILE",
+    )
     elevenlabs_timeout_seconds: float = 60.0
     elevenlabs_max_retries: int = Field(default=2, validation_alias="ELEVENLABS_MAX_RETRIES")
     elevenlabs_retry_base_seconds: float = Field(
@@ -242,6 +251,20 @@ class Settings(BaseSettings):
         if normalized not in allowed:
             raise ValueError(f"ember_env must be one of: {', '.join(sorted(allowed))}")
         return normalized
+
+    @field_validator("elevenlabs_speed")
+    @classmethod
+    def validate_elevenlabs_speed(cls, value: float) -> float:
+        if not 0.5 <= value <= 1.5:
+            raise ValueError("elevenlabs_speed must be between 0.5 and 1.5")
+        return value
+
+    @field_validator("elevenlabs_sentence_pause_seconds")
+    @classmethod
+    def validate_elevenlabs_sentence_pause_seconds(cls, value: float) -> float:
+        if not 0.0 <= value <= 1.5:
+            raise ValueError("elevenlabs_sentence_pause_seconds must be between 0.0 and 1.5")
+        return value
 
     @field_validator("max_audio_bytes")
     @classmethod

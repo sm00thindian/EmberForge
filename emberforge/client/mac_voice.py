@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import os
 import sys
 import threading
@@ -16,6 +17,7 @@ from emberforge.client.audio_playback import play_audio_bytes
 from emberforge.client.ptt import PushToTalkSession, SessionEventType, clear_listening_indicator
 from emberforge.client.recording import SAMPLE_RATE
 from emberforge.services.personas import VoiceConfig
+from emberforge.services.voice.mac_say_tts import MacSayTTS
 from emberforge.services.voice.registry import (
     get_mac_tts_provider,
     get_stt_provider,
@@ -116,12 +118,18 @@ def parse_quoted_prompt(raw: str) -> str | None:
     return message or None
 
 
+def _use_backend_tts() -> bool:
+    """ElevenLabs runs on the backend so speed/pronunciation settings apply."""
+    return resolve_mac_tts_mode(_settings) == "elevenlabs"
+
+
 def chat_with_persona(message: str, *, clear_history: bool = False) -> dict[str, Any]:
     payload = {
         "message": message,
         "persona": _active_persona_id,
         "session_id": _session_id,
         "clear_history": clear_history,
+        "synthesize_audio": _use_backend_tts(),
     }
     response = requests.post(CHAT_URL, json=payload, timeout=90)
     response.raise_for_status()
@@ -151,12 +159,45 @@ def run_conversation_turn(user_input: str) -> None:
 
 
 def speak_response(text: str, voice_config: dict[str, Any]) -> None:
-    voice = VoiceConfig.from_dict(voice_config)
-    tts, resolved_voice = get_mac_tts_provider(voice, _settings)
-    result = asyncio.run(tts.synthesize(text, resolved_voice))
+    audio_b64 = voice_config.get("audio_base64")
+    if audio_b64:
+        try:
+            play_audio_bytes(
+                base64.b64decode(audio_b64),
+                voice_config.get("format") or "mp3",
+            )
+            return
+        except (ValueError, OSError) as exc:
+            print(f"Warning: could not play response audio ({exc}).")
 
-    if result.audio_bytes:
-        play_audio_bytes(result.audio_bytes, result.format or "mp3")
+    if voice_config.get("played_locally"):
+        return
+
+    mode = resolve_mac_tts_mode(_settings)
+    voice = VoiceConfig.from_dict(voice_config)
+    try:
+        tts, resolved_voice = get_mac_tts_provider(voice, _settings)
+        result = asyncio.run(tts.synthesize(text, resolved_voice))
+        if result.audio_bytes:
+            play_audio_bytes(result.audio_bytes, result.format or "mp3")
+            return
+        if result.played_locally:
+            return
+        print(f"Warning: no speech audio produced (TTS mode: {mode}).")
+    except Exception as exc:
+        print(f"Speech failed ({mode}): {exc}")
+        if mode == "elevenlabs":
+            _speak_macos_fallback(text, voice)
+
+
+def _speak_macos_fallback(text: str, voice: VoiceConfig) -> None:
+    print("Falling back to macOS say for this reply.")
+    try:
+        result = asyncio.run(MacSayTTS().synthesize(text, voice))
+        if not result.played_locally:
+            print("macOS say fallback did not produce audio.")
+    except Exception as exc:
+        print(f"macOS say fallback failed: {exc}")
 
 
 def describe_mac_tts_mode() -> str:
@@ -220,6 +261,15 @@ def _handle_audio_turn(audio) -> None:
         user_input = transcribe_audio(audio)
         if user_input:
             run_conversation_turn(user_input)
+    except requests.HTTPError as exc:
+        detail = ""
+        try:
+            detail = exc.response.json().get("message", "")
+        except Exception:
+            pass
+        print(f"Backend error: {exc}{f' — {detail}' if detail else ''}")
+    except Exception as exc:
+        print(f"Turn failed: {exc}")
     finally:
         _processing_turn = False
 

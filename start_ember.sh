@@ -10,6 +10,7 @@
 #   ./start_ember.sh --non-interactive
 #   ./start_ember.sh --elevenlabs
 #   ./start_ember.sh --mac-tts macos_say
+#   ./start_ember.sh --localhost     # bind 127.0.0.1 only (no LAN access)
 #
 
 set -euo pipefail
@@ -26,6 +27,7 @@ MAC_TTS=""
 LLM_MODEL=""
 NONINTERACTIVE=0
 OPEN_SETUP=0
+LOCALHOST_ONLY=0
 RUN_MODE_CHOSEN=0
 PERSONA_CHOSEN=0
 MAC_TTS_CHOSEN=0
@@ -45,6 +47,7 @@ Options:
   --model <id>         LLM model override for this session (e.g. grok-3-latest)
   --non-interactive    Fail instead of prompting for missing config
   --open-setup         Open the setup website in your browser
+  --localhost          Bind 127.0.0.1 only (default: LAN via 0.0.0.0)
   -h, --help           Show this help
 
 Without flags, the script will:
@@ -118,6 +121,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --open-setup)
       OPEN_SETUP=1
+      shift
+      ;;
+    --localhost)
+      LOCALHOST_ONLY=1
       shift
       ;;
     -h|--help)
@@ -606,6 +613,44 @@ select_mac_tts_mode() {
   export EMBER_MAC_TTS="$MAC_TTS"
 }
 
+primary_lan_ip() {
+  local iface ip
+  for iface in en0 en1 bridge0; do
+    ip="$(ipconfig getifaddr "$iface" 2>/dev/null || true)"
+    if [[ -n "$ip" ]]; then
+      printf '%s' "$ip"
+      return 0
+    fi
+  done
+  return 1
+}
+
+resolve_bind_host() {
+  if [[ "$LOCALHOST_ONLY" -eq 1 ]]; then
+    printf '%s' "127.0.0.1"
+    return
+  fi
+  printf '%s' "${EMBER_HOST:-0.0.0.0}"
+}
+
+print_access_urls() {
+  local host="$1"
+  local port="$2"
+  echo "Local setup:    http://127.0.0.1:${port}/setup"
+  if [[ "$host" == "0.0.0.0" || "$host" == "::" ]]; then
+    local lan_ip=""
+    lan_ip="$(primary_lan_ip || true)"
+    if [[ -n "$lan_ip" ]]; then
+      echo "LAN setup:      http://${lan_ip}:${port}/setup"
+    else
+      echo "LAN setup:      http://<this-mac-ip>:${port}/setup"
+    fi
+    if [[ "${EMBER_ENV:-development}" == "development" ]]; then
+      echo "LAN note:       read-only safe; set EMBER_ENV=production to lock remote writes."
+    fi
+  fi
+}
+
 wait_for_backend() {
   local attempts=0
   local max_attempts=40
@@ -623,7 +668,9 @@ wait_for_backend() {
 }
 
 start_backend() {
-  echo "Starting EmberForge backend on port ${BACKEND_PORT}..."
+  local bind_host
+  bind_host="$(resolve_bind_host)"
+  echo "Starting EmberForge backend on ${bind_host}:${BACKEND_PORT}..."
   (
     cd "$ROOT_DIR"
     set -a
@@ -633,16 +680,17 @@ start_backend() {
     set +a
     export XAI_API_KEY
     export EMBER_BACKEND_PORT="$BACKEND_PORT"
+    export EMBER_HOST="$bind_host"
     if [[ -n "${LLM_MODEL:-}" ]]; then
       export EMBER_LLM_MODEL="$LLM_MODEL"
     fi
-    exec emberforge serve --host 127.0.0.1 --port "$BACKEND_PORT"
+    exec emberforge serve --host "$bind_host" --port "$BACKEND_PORT"
   ) &
   BACKEND_PID=$!
 
   wait_for_backend
-  echo "Backend is ready at http://127.0.0.1:${BACKEND_PORT}"
-  echo "Setup UI:       http://127.0.0.1:${BACKEND_PORT}/setup"
+  echo "Backend is ready."
+  print_access_urls "$bind_host" "$BACKEND_PORT"
 }
 
 open_setup_browser() {
@@ -694,6 +742,7 @@ print_launch_summary() {
   if [[ "$TEXT_ONLY" -eq 0 ]]; then
     echo "  Mac TTS:     $(describe_mac_tts_mode "${EMBER_MAC_TTS:-macos_say}")"
   fi
+  echo "  Bind host:   $(resolve_bind_host)"
   echo "  Port:        ${BACKEND_PORT}"
   echo ""
 }
@@ -724,7 +773,7 @@ main() {
 
   if [[ "$TEXT_ONLY" -eq 1 ]]; then
     echo "Backend running in text-only mode."
-    echo "Open setup: http://127.0.0.1:${BACKEND_PORT}/setup"
+    print_access_urls "$(resolve_bind_host)" "$BACKEND_PORT"
     echo "Test chat:  use the Test Chat tab in setup, or:"
     echo "  curl -X POST http://127.0.0.1:${BACKEND_PORT}/chat \\"
     echo "    -H 'Content-Type: application/json' \\"

@@ -48,6 +48,9 @@ def test_setup_status(setup_client):
     assert data["api_key_set"] is True
     assert "ember" in data["personas"]
     assert data["setup_url"] == "/setup"
+    assert "macos_say_available" in data
+    assert "running_in_container" in data
+    assert "runtime_platform" in data
 
 
 def test_setup_config_mask_and_patch(setup_client):
@@ -126,14 +129,14 @@ def test_admin_devices_list_and_revoke(setup_client):
     assert client.get("/admin/v1/devices").json()["devices"] == []
 
 
-def test_chat_voice_flags_pass_through(setup_client, monkeypatch):
+def test_chat_voice_elevenlabs_flags_pass_through(setup_client, monkeypatch):
     client, _ = setup_client
 
     async def fake_text(persona_id, message, **kwargs):
         from emberforge.services.conversation import ConversationResult
 
         assert kwargs.get("synthesize_audio") is True
-        assert kwargs.get("play_audio") is True
+        assert kwargs.get("play_audio") is False
         assert kwargs.get("session_id") == "web-test-session"
         return ConversationResult(
             request_id="req-voice",
@@ -164,7 +167,7 @@ def test_chat_voice_flags_pass_through(setup_client, monkeypatch):
             "persona": "ember",
             "session_id": "web-test-session",
             "synthesize_audio": True,
-            "play_audio": True,
+            "play_audio": False,
         },
     )
     assert response.status_code == 200
@@ -173,6 +176,83 @@ def test_chat_voice_flags_pass_through(setup_client, monkeypatch):
     assert data["response"] == "Hello with voice"
     assert data["session_id"] == "web-test-session"
     assert data["history_turns"] == 2
+
+
+def test_chat_defers_hub_playback(setup_client, monkeypatch):
+    client, _ = setup_client
+    scheduled: list[tuple] = []
+
+    async def fake_text(persona_id, message, **kwargs):
+        from emberforge.services.conversation import ConversationResult
+
+        assert kwargs.get("play_audio") is False
+        return ConversationResult(
+            request_id="req-defer",
+            transcript=message,
+            response_text="Deferred speech",
+            persona_id=persona_id,
+            persona_name="Ember",
+            voice={"provider": "macos_say"},
+            display_lines=["Deferred speech"],
+            timestamp="2026-06-16T12:00:00+00:00",
+            model="grok-3-latest",
+            history_turns=1,
+        )
+
+    async def fake_hub_play(converse, persona_id, text):
+        scheduled.append((persona_id, text))
+
+    converse = client.app.state.converse
+    monkeypatch.setattr(converse, "converse_text", fake_text)
+    monkeypatch.setattr("emberforge.api.routes.chat._play_hub_speech", fake_hub_play)
+
+    response = client.post(
+        "/chat",
+        json={"message": "Hi", "persona": "ember", "play_audio": True, "synthesize_audio": False},
+    )
+    assert response.status_code == 200
+    assert response.json()["response"] == "Deferred speech"
+    assert scheduled == [("ember", "Deferred speech")]
+
+
+def test_chat_voice_macos_say_does_not_block_response(setup_client, monkeypatch):
+    """Hub speak is deferred so the JSON body returns before macOS say runs."""
+    client, _ = setup_client
+
+    async def fake_text(persona_id, message, **kwargs):
+        from emberforge.services.conversation import ConversationResult
+
+        assert kwargs.get("synthesize_audio") is False
+        assert kwargs.get("play_audio") is False
+        return ConversationResult(
+            request_id="req-say",
+            transcript=message,
+            response_text="Hello from say",
+            persona_id=persona_id,
+            persona_name="Ember",
+            voice={"provider": "macos_say"},
+            display_lines=["Hello from say"],
+            timestamp="2026-06-16T12:00:00+00:00",
+            model="grok-3-latest",
+            session_id=kwargs.get("session_id"),
+            history_turns=1,
+        )
+
+    converse = client.app.state.converse
+    monkeypatch.setattr(converse, "converse_text", fake_text)
+    monkeypatch.setattr("emberforge.api.routes.chat._play_hub_speech", lambda *args, **kwargs: None)
+
+    response = client.post(
+        "/chat",
+        json={
+            "message": "Hi",
+            "persona": "ember",
+            "synthesize_audio": False,
+            "play_audio": True,
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["response"] == "Hello from say"
 
 
 def test_setup_mutations_blocked_remotely_in_production(isolated_root, monkeypatch):
