@@ -7,6 +7,7 @@
   "required": [
     "api_version",
     "service",
+    "hub",
     "features",
     "tts",
     "audio",
@@ -18,6 +19,36 @@
   "properties": {
     "api_version": { "type": "string", "minLength": 1 },
     "service": { "const": "emberforge" },
+    "hub": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "deployment",
+        "tenant_mode",
+        "state_backend",
+        "conversation_backend",
+        "setup_env_file_writes"
+      ],
+      "properties": {
+        "deployment": {
+          "type": "string",
+          "enum": ["local", "docker", "cloud"]
+        },
+        "tenant_mode": {
+          "type": "string",
+          "enum": ["single", "isolated"]
+        },
+        "state_backend": {
+          "type": "string",
+          "enum": ["filesystem", "external"]
+        },
+        "conversation_backend": {
+          "type": "string",
+          "enum": ["memory", "external"]
+        },
+        "setup_env_file_writes": { "type": "boolean" }
+      }
+    },
     "features": {
       "type": "object",
       "additionalProperties": false,

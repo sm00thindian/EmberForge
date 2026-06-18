@@ -93,8 +93,10 @@ def verify_admin(
 
 
 def verify_pairing_request(request: Request) -> None:
-    """Pairing code issuance is localhost-only in production."""
+    """Pairing code issuance is localhost-only in production on maker-hosted hubs."""
     settings = get_settings()
+    if not settings.deployment_profile.localhost_setup_mutations:
+        return
     if not settings.is_production:
         return
     if not is_trusted_local(request):
@@ -105,5 +107,11 @@ def verify_pairing_request(request: Request) -> None:
 
 
 def verify_setup_request(request: Request) -> None:
-    """Setup mutations are localhost-only in production."""
+    """Setup mutations are localhost-only in production on maker-hosted hubs."""
+    settings = get_settings()
+    if not settings.deployment_profile.allows_env_file_writes:
+        raise HTTPException(
+            status_code=501,
+            detail="Setup configuration writes are disabled for this deployment profile",
+        )
     verify_pairing_request(request)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from emberforge import __version__
+from emberforge.config.env_file import read_env_values
 from emberforge.runtime.platform import macos_say_available, running_in_container, runtime_platform
 from emberforge.services.personas import load_personas
 from emberforge.settings import Settings
@@ -53,6 +54,7 @@ _CONFIG_KEYS = (
     "EMBER_CONVERSATION_MAX_TURNS",
     "EMBER_HOST",
     "EMBER_BACKEND_PORT",
+    "EMBER_DEPLOYMENT",
 )
 
 
@@ -63,24 +65,6 @@ def mask_secret(value: str) -> str:
     if len(value) <= 4:
         return "••••"
     return f"••••{value[-4:]}"
-
-
-def read_env_values(path) -> dict[str, str]:
-    """Parse key/value pairs from a .env file."""
-    values: dict[str, str] = {}
-    if not path.exists():
-        return values
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in stripped:
-            continue
-        key, _, raw = stripped.partition("=")
-        key = key.strip()
-        value = raw.strip()
-        if value.startswith('"') and value.endswith('"'):
-            value = value[1:-1].replace('\\"', '"').replace("\\\\", "\\")
-        values[key] = value
-    return values
 
 
 def build_config_snapshot(settings: Settings, *, mask_secrets: bool = True) -> dict[str, str]:
@@ -99,6 +83,8 @@ def build_config_snapshot(settings: Settings, *, mask_secrets: bool = True) -> d
                 value = "true" if settings.context_enabled else "false"
             elif key == "EMBER_TOOLS_ENABLED":
                 value = "true" if settings.tools_enabled else "false"
+            elif key == "EMBER_DEPLOYMENT":
+                value = settings.ember_deployment
         if mask_secrets and key in _SENSITIVE_KEYS:
             snapshot[key] = mask_secret(value) if value else ""
         else:
@@ -150,12 +136,15 @@ def build_setup_status(settings: Settings) -> dict:
         runtime_ok = False
         issues.append(str(exc))
 
+    from emberforge.hub.runtime import build_hub
+
     return {
         "ready": runtime_ok and personas_ok and not issues,
         "issues": issues,
         "warnings": warnings,
         "version": __version__,
         "ember_env": settings.ember_env,
+        "hub": build_hub(settings).as_capabilities(),
         "setup_url": "/setup",
         "api_key_set": bool(settings.resolved_llm_api_key),
         "context_enabled": settings.context_enabled,

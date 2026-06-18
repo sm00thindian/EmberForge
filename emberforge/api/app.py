@@ -18,8 +18,7 @@ from emberforge.api.middleware import (
     configure_security_logging,
 )
 from emberforge.api.routes import admin, chat, device, health, setup
-from emberforge.services.converse import ConverseService
-from emberforge.services.personas import load_personas
+from emberforge.hub.runtime import HubRuntime, build_hub
 from emberforge.settings import Settings, get_settings
 
 _SETUP_WEB_DIR = Path(__file__).resolve().parent.parent / "web"
@@ -82,11 +81,12 @@ async def _app_lifespan(app: FastAPI):
         logger.info("emberforge_shutdown complete")
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, hub: HubRuntime | None = None) -> FastAPI:
     """Build the FastAPI app. Used by the CLI, tests, and uvicorn."""
-    resolved_settings = settings or get_settings()
-    personas = load_personas(resolved_settings)
-    converse = ConverseService(resolved_settings, personas)
+    resolved_hub = hub or build_hub(settings)
+    resolved_settings = resolved_hub.settings
+    personas = resolved_hub.personas
+    converse = resolved_hub.converse
 
     app = FastAPI(
         title="EmberForge Voice Companion",
@@ -111,6 +111,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     configure_app(app)
 
+    app.state.hub = resolved_hub
     app.state.settings = resolved_settings
     app.state.personas = personas
     app.state.converse = converse

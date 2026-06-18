@@ -23,6 +23,8 @@ The core experience is hearing a distinct personality speak back to you. That pe
 
 Eventually this runs on a **consumer-grade device** (ESP32-S3) on your desk or workbench. The device is a thin client — mic, speaker, button, display — while the EmberForge backend handles personas, STT, LLM, and TTS. Right now you prototype on Mac; the same backend serves hardware with zero API changes.
 
+The backend is structured as a **portable hub**: maker/DIY defaults (local filesystem, `./start_ember.sh`, Docker on your LAN) with storage seams ready for hosted AWS deployment later. See [`docs/HUB_ARCHITECTURE.md`](docs/HUB_ARCHITECTURE.md).
+
 ---
 
 ## Quick Start (Mac)
@@ -167,10 +169,12 @@ EmberForge/
 ├── .env.example                # Local configuration template
 ├── device/README.md            # Consumer device API contract
 ├── docs/
+│   ├── HUB_ARCHITECTURE.md     # Maker-local hub, AWS migration path
 │   ├── PHASE_0.md              # Mac companion exit criteria
 │   ├── M7_SECURITY.md          # Pairing, TOTP, rate limits
 │   └── RELEASE_1.0.md        # 1.0 milestone checklist
 ├── emberforge/                 # Python package (the backend)
+│   ├── hub/                    # Composition root + storage protocols
 │   ├── cli.py                  # serve | check | pair | totp-setup
 │   ├── web/                    # Local setup SPA (/setup)
 │   ├── services/               # personas, conversation, context, tools, voice

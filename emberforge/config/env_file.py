@@ -19,6 +19,24 @@ def format_env_value(value: str) -> str:
     return f'"{escaped}"'
 
 
+def read_env_values(path: Path) -> dict[str, str]:
+    """Parse key/value pairs from a `.env` file."""
+    values: dict[str, str] = {}
+    if not path.exists():
+        return values
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, _, raw = stripped.partition("=")
+        key = key.strip()
+        value = raw.strip()
+        if value.startswith('"') and value.endswith('"'):
+            value = value[1:-1].replace('\\"', '"').replace("\\\\", "\\")
+        values[key] = value
+    return values
+
+
 def update_env_file(path: Path, updates: dict[str, str]) -> None:
     """Upsert environment variables, preserving comments and unrelated keys."""
     lines: list[str] = []

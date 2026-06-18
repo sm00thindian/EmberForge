@@ -13,6 +13,8 @@ from emberforge.models.schemas import DevicePairConfirmRequest, DeviceTextReques
 from emberforge.security.runtime import get_security_state
 from emberforge.services.conversation import ConversationResult
 from emberforge.services.converse import ConverseService
+from emberforge.hub.runtime import build_hub
+from emberforge.hub.tenancy import scoped_session_id
 from emberforge.settings import Settings
 
 DEVICE_AUTH = [Depends(verify_device)]
@@ -56,12 +58,14 @@ def create_device_routers(
         tags=["device"],
         dependencies=DEVICE_AUTH,
     )
+    hub = build_hub(settings)
 
     @meta_router.get("/capabilities")
     async def device_capabilities():
         return {
             "api_version": settings.device_api_version,
             "service": "emberforge",
+            "hub": hub.as_capabilities(),
             "features": {
                 "personas": True,
                 "text_converse": True,
@@ -122,7 +126,10 @@ def create_device_routers(
 
     @meta_router.post("/converse/text")
     async def device_converse_text(request: DeviceTextRequest):
-        session_id = request.session_id or request.device_id
+        session_id = scoped_session_id(
+            hub.tenant_key,
+            request.session_id or request.device_id or "",
+        )
         result = await converse.converse_text(
             request.persona,
             request.message,
@@ -156,11 +163,12 @@ def create_device_routers(
         if len(audio_bytes) > settings.max_audio_bytes:
             raise audio_too_large(request_id=resolved_request_id)
 
+        session_id = scoped_session_id(hub.tenant_key, device_id or "")
         result = await converse.converse_audio(
             persona_id,
             audio_bytes,
             request_id=resolved_request_id,
-            session_id=device_id,
+            session_id=session_id,
             synthesize_audio=True,
         )
 

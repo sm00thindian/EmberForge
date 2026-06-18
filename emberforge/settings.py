@@ -92,6 +92,12 @@ class Settings(BaseSettings):
     # Mac client TTS per session (start_ember.sh exports EMBER_MAC_TTS; not stored in .env)
     mac_tts_mode: str = Field(default="macos_say", validation_alias="EMBER_MAC_TTS")
 
+    # Deployment topology (maker-local default; cloud for future hosted hubs)
+    ember_deployment: str = Field(
+        default="local",
+        validation_alias="EMBER_DEPLOYMENT",
+    )
+
     # Environment / security (M7)
     ember_env: str = Field(
         default="development",
@@ -257,6 +263,13 @@ class Settings(BaseSettings):
     def mac_elevenlabs_ready(self) -> bool:
         return self.server_tts_available and bool(self.elevenlabs_default_voice_id)
 
+    @field_validator("ember_deployment")
+    @classmethod
+    def validate_ember_deployment(cls, value: str) -> str:
+        from emberforge.hub.deployment import DeploymentProfile
+
+        return DeploymentProfile.from_value(value).value
+
     @field_validator("ember_env")
     @classmethod
     def validate_ember_env(cls, value: str) -> str:
@@ -265,6 +278,12 @@ class Settings(BaseSettings):
         if normalized not in allowed:
             raise ValueError(f"ember_env must be one of: {', '.join(sorted(allowed))}")
         return normalized
+
+    @property
+    def deployment_profile(self):
+        from emberforge.hub.deployment import DeploymentProfile
+
+        return DeploymentProfile.from_value(self.ember_deployment)
 
     @field_validator("elevenlabs_speed")
     @classmethod
