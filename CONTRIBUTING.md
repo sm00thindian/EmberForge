@@ -8,6 +8,8 @@ Thanks for helping improve EmberForge. This guide covers local development, test
 - **macOS** for the full Mac voice client and `sounddevice`-based tests (optional on Linux — backend and API tests still run)
 - **Docker** (optional) for hub-style deployment; see [`deploy/README.md`](deploy/README.md)
 
+For where the project is headed (maker-first, AWS-portable hub), see [`docs/ROADMAP.md`](docs/ROADMAP.md) and [`docs/HUB_ARCHITECTURE.md`](docs/HUB_ARCHITECTURE.md).
+
 ## First-time setup
 
 ```bash
@@ -74,6 +76,7 @@ Code under `emberforge/` is baked into the image — rebuild after backend chang
 | Path | Purpose |
 |------|---------|
 | `emberforge/` | Python backend (API, services, setup SPA) |
+| `emberforge/hub/` | Hub composition root, deployment profiles, storage protocols |
 | `personas/` | Persona JSON definitions |
 | `prompts/` | System prompts, user context, TTS pronunciations |
 | `tests/` | pytest suite |
@@ -97,6 +100,7 @@ See the [README](README.md#project-structure) for the full tree.
 - **Claude:** set `EMBER_LLM_PROVIDER=claude` and `ANTHROPIC_API_KEY`
 - **Placeholder keys:** `your_xai_api_key_here` from `.env.example` is rejected by `emberforge check`, `emberforge serve`, and `./start_ember.sh`
 - **Tests vs production:** `EMBER_ENV=development` (default) keeps device pairing optional; see [`docs/M7_SECURITY.md`](docs/M7_SECURITY.md) for production
+- **Deployment profile:** `EMBER_DEPLOYMENT=local` (default), `docker` (home LAN hub), or `cloud` (hosted; blocks setup `.env` writes). See [`docs/HUB_ARCHITECTURE.md`](docs/HUB_ARCHITECTURE.md)
 
 ## Questions
 

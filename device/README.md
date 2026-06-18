@@ -7,7 +7,7 @@ EmberForge is designed so **consumer-grade hardware stays simple** while the bac
 ```
 ┌─────────────────────────┐         WiFi          ┌──────────────────────────┐
 │  Consumer Device        │ ◄──────────────────► │  EmberForge Backend       │
-│  (ESP32-S3, etc.)       │                       │  (Mac, mini-PC, or hub)  │
+│  (ESP32-S3, etc.)       │                       │  (local, Docker, or AWS) │
 │                         │                       │                          │
 │  • Push-to-talk button  │   POST /device/v1/    │  • Persona engine        │
 │  • Microphone           │        converse       │  • Grok / xAI LLM        │
@@ -25,7 +25,7 @@ All device endpoints live under `/device/v1/`. This version will remain backward
 
 | Endpoint | Purpose |
 |----------|---------|
-| `GET /device/v1/capabilities` | Check server features on boot |
+| `GET /device/v1/capabilities` | Check server features on boot (includes `hub` deployment metadata) |
 | `GET /device/v1/personas` | List personas for a device menu |
 | `POST /device/v1/converse` | Upload WAV audio → transcript + reply |
 | `POST /device/v1/converse/text` | Send pre-transcribed text |
@@ -111,10 +111,14 @@ See `firmware/esp32-voice-client/` for a starter ESP32-S3 sketch that follows th
 
 ## Deployment targets for the backend
 
-The same backend runs on:
+The same `/device/v1/` contract works regardless of where the hub runs:
 
-- **Your Mac** (development, Phase 0)
-- **Home mini-PC / Raspberry Pi** (always-on home hub)
-- **VPS** (remote access)
+| Target | Typical URL | `EMBER_DEPLOYMENT` |
+|--------|-------------|---------------------|
+| Mac venv (development) | `http://127.0.0.1:8000` | `local` (default) |
+| Docker home hub | `http://<lan-ip>:8000` | `docker` |
+| Hosted AWS (future) | `https://api.<domain>` | `cloud` |
 
-Consumer devices on the same network point at the hub's IP. The persona and voice experience is identical across Mac and hardware.
+Consumer devices store the hub base URL and `device_token` in NVS at provisioning time. Firmware does not need to change when moving from a LAN hub to a hosted one — only the URL and pairing flow differ.
+
+Architecture and commercial path: [`docs/HUB_ARCHITECTURE.md`](../docs/HUB_ARCHITECTURE.md), [`docs/ROADMAP.md`](../docs/ROADMAP.md).

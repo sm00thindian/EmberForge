@@ -3,11 +3,11 @@
 **A personal AI voice companion with swappable personas, live context, and custom voices**  
 *Talk to Ember on your Mac today. Configure your hub in the browser. Build the physical device tomorrow.*
 
-[![Status](https://img.shields.io/badge/Status-1.0.0-blue)](.)
+[![Status](https://img.shields.io/badge/Status-1.1.0-blue)](.)
 [![Hardware](https://img.shields.io/badge/Hardware-ESP32--S3%20(planned)-orange)](https://www.espressif.com/)
 [![LLM](https://img.shields.io/badge/LLM-Grok%20%7C%20Claude-blue)](https://x.ai/)
 
-> **v1.0.0** — Release 1.0 complete (M1–M9): production backend with setup UI, multi-turn memory, live context, security, structured logging, Docker/deploy packaging, and optional Claude LLM (Grok default). See [`CHANGELOG.md`](CHANGELOG.md) and [`docs/RELEASE_1.0.md`](docs/RELEASE_1.0.md).
+> **v1.1.0** — Release 1.0 complete (M1–M9) plus a **portable hub layer** for maker-local and future AWS hosting. See [`CHANGELOG.md`](CHANGELOG.md), [`docs/ROADMAP.md`](docs/ROADMAP.md), and [`docs/HUB_ARCHITECTURE.md`](docs/HUB_ARCHITECTURE.md).
 
 ---
 
@@ -23,7 +23,7 @@ The core experience is hearing a distinct personality speak back to you. That pe
 
 Eventually this runs on a **consumer-grade device** (ESP32-S3) on your desk or workbench. The device is a thin client — mic, speaker, button, display — while the EmberForge backend handles personas, STT, LLM, and TTS. Right now you prototype on Mac; the same backend serves hardware with zero API changes.
 
-The backend is structured as a **portable hub**: maker/DIY defaults (local filesystem, `./start_ember.sh`, Docker on your LAN) with storage seams ready for hosted AWS deployment later. See [`docs/HUB_ARCHITECTURE.md`](docs/HUB_ARCHITECTURE.md).
+The backend is structured as a **portable hub**: maker/DIY defaults (local filesystem, `./start_ember.sh`, Docker on your LAN) with storage seams ready for hosted AWS deployment later. See [`docs/HUB_ARCHITECTURE.md`](docs/HUB_ARCHITECTURE.md) and the product roadmap in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ---
 
@@ -169,7 +169,8 @@ EmberForge/
 ├── .env.example                # Local configuration template
 ├── device/README.md            # Consumer device API contract
 ├── docs/
-│   ├── HUB_ARCHITECTURE.md     # Maker-local hub, AWS migration path
+│   ├── HUB_ARCHITECTURE.md     # Hub composition, deployment profiles, storage
+│   ├── ROADMAP.md              # Maker-first product path + AWS commercial track
 │   ├── PHASE_0.md              # Mac companion exit criteria
 │   ├── M7_SECURITY.md          # Pairing, TOTP, rate limits
 │   └── RELEASE_1.0.md        # 1.0 milestone checklist
@@ -274,8 +275,9 @@ CI runs on **macOS** on every push to `main` (`.github/workflows/test.yml`).
 
 | Area | Status |
 |------|--------|
-| **Package version** | **1.0.0** |
+| **Package version** | **1.1.0** |
 | **Release 1.0** (M1–M9) | ✅ complete |
+| **Hub portability layer** (v1.1) | ✅ `HubRuntime`, storage protocols, `EMBER_DEPLOYMENT` |
 | **Phase 0** Mac voice companion | ✅ complete |
 | Local setup website (`/setup`) | ✅ |
 | Multi-turn conversation memory | ✅ |
@@ -290,13 +292,14 @@ CI runs on **macOS** on every push to `main` (`.github/workflows/test.yml`).
 | ESP32 firmware scaffold | ✅ scaffold |
 
 **Phase 0:** [`docs/PHASE_0.md`](docs/PHASE_0.md)  
+**Roadmap:** [`docs/ROADMAP.md`](docs/ROADMAP.md)  
 **Deploy:** [`deploy/README.md`](deploy/README.md)
 
 ---
 
 ## Changelog
 
-See [`CHANGELOG.md`](CHANGELOG.md). Latest release: **[1.0.0](https://github.com/sm00thindian/EmberForge/releases/tag/v1.0.0)** (2026-06-17).
+See [`CHANGELOG.md`](CHANGELOG.md). Latest release: **[1.1.0](https://github.com/sm00thindian/EmberForge/releases/tag/v1.1.0)** (2026-06-18).
 
 ---
 

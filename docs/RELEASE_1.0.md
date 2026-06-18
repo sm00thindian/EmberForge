@@ -250,7 +250,7 @@ Device contract documentation: `device/README.md`
 
 ## Versioning Policy
 
-- **Server package:** semver in `emberforge/__init__.py` (currently `1.0.0`)
+- **Server package:** semver in `emberforge/__init__.py` (currently `1.1.0`)
 - **Device API:** `/device/v1/` — breaking changes require `/device/v2/`
 - Devices should call `/version` and `/device/v1/capabilities` on boot
 
@@ -260,7 +260,7 @@ Device contract documentation: `device/README.md`
 
 | Component | Version |
 |-----------|---------|
-| Package | `1.0.0` |
+| Package | `1.1.0` |
 | Device API | `v1` |
 | Milestones complete | M1–M9 (incl. M3 device contract tests) |
 | Phase 0 (Mac companion) | ✅ Complete — [`PHASE_0.md`](PHASE_0.md) |
@@ -270,4 +270,4 @@ Device contract documentation: `device/README.md`
 
 **Changelog:** [`CHANGELOG.md`](../CHANGELOG.md) (Keep a Changelog format)
 
-**Release 1.0 complete.** Next work: consumer device firmware and hub hardening beyond 1.0.
+**Release 1.0 complete.** v1.1.0 adds the portable hub layer ([`HUB_ARCHITECTURE.md`](HUB_ARCHITECTURE.md)). Next work: consumer firmware and Phases 3–5 on the roadmap ([`ROADMAP.md`](ROADMAP.md)).

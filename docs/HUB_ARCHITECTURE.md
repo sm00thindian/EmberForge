@@ -120,7 +120,8 @@ Same account can link a **home hub** (`EMBER_DEPLOYMENT=docker` on LAN) for low 
 
 ## Related docs
 
+- [`ROADMAP.md`](ROADMAP.md) — product north star: maker path, AWS phases, explicit non-goals
 - [`device/README.md`](../device/README.md) — device API contract
-- [`docs/M7_SECURITY.md`](M7_SECURITY.md) — pairing and production auth
+- [`M7_SECURITY.md`](M7_SECURITY.md) — pairing and production auth
 - [`deploy/README.md`](../deploy/README.md) — Docker home hub
 - [`CONTRIBUTING.md`](../CONTRIBUTING.md) — development setup

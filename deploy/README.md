@@ -1,5 +1,7 @@
 # EmberForge deployment (M9)
 
+Home-LAN hubs use **`EMBER_DEPLOYMENT=docker`** (set automatically in `docker-compose.yml`). Makers on Mac venv use `local` (default). Future AWS hosting uses `cloud` — see [`docs/HUB_ARCHITECTURE.md`](../docs/HUB_ARCHITECTURE.md) and [`docs/ROADMAP.md`](../docs/ROADMAP.md).
+
 ## Docker (recommended home hub)
 
 ### First run

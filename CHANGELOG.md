@@ -11,6 +11,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - (nothing yet)
 
+## [1.1.0] - 2026-06-18
+
+### Added
+
+- **Portable hub layer** — `HubRuntime` composition root (`emberforge/hub/`) for maker-local and future AWS hosting
+- **`EMBER_DEPLOYMENT`** profiles: `local` (default), `docker`, `cloud` — gates setup `.env` writes and capability metadata
+- **Storage protocols** — `ConfigStore`, `SecurityStore`, `ConversationStore`, `PersonaCatalog` with filesystem + in-memory local implementations (`HubStores`)
+- **Device hub metadata** — `GET /device/v1/capabilities` and `/setup/v1/status` expose `hub` (deployment, backends, tenant mode)
+- **Tenant seam** — `scoped_session_id()` for future multi-tenant conversation memory (no behavior change for makers)
+- Hub architecture guide: [`docs/HUB_ARCHITECTURE.md`](docs/HUB_ARCHITECTURE.md)
+- Product roadmap (maker-first, AWS path): [`docs/ROADMAP.md`](docs/ROADMAP.md)
+
+### Changed
+
+- `create_app()` builds and attaches `app.state.hub`; `ConverseService` uses hub-injected conversation store
+- `get_security_state()` delegates to hub storage factory (same `.emberforge/` behavior for makers)
+- `docker-compose.yml` sets `EMBER_DEPLOYMENT=docker` for home-LAN hubs
+- `read_env_values()` moved to `emberforge/config/env_file.py` (shared by setup and `ConfigStore`)
+
 ## [1.0.0] - 2026-06-17
 
 ### Added
@@ -97,7 +116,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial repository scaffolding and project vision documentation
 
-[Unreleased]: https://github.com/sm00thindian/EmberForge/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/sm00thindian/EmberForge/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/sm00thindian/EmberForge/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/sm00thindian/EmberForge/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/sm00thindian/EmberForge/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/sm00thindian/EmberForge/releases/tag/v0.1.0
