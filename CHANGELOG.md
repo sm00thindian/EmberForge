@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- (nothing yet)
+- Waveshare ESP32-S3-AUDIO-Board pin map and `config.h.example` ([`firmware/waveshare-esp32-s3-audio-board/`](firmware/waveshare-esp32-s3-audio-board/))
+- Maker hardware guide [`docs/HARDWARE.md`](docs/HARDWARE.md) (Amazon B0FPCNZS9M)
 
 ## [1.1.0] - 2026-06-18
 

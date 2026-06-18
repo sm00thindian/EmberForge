@@ -1,0 +1,66 @@
+#pragma once
+/**
+ * EmberForge thin-client config — Waveshare ESP32-S3-AUDIO-Board
+ *
+ * Copy to config.h and fill in your LAN hub details:
+ *   cp config.h.example config.h
+ *
+ * Amazon listing (same board): https://www.amazon.com/dp/B0FPCNZS9M
+ * Waveshare wiki: https://www.waveshare.com/wiki/ESP32-S3-AUDIO-Board
+ */
+
+#include "pins.h"
+
+// ---------------------------------------------------------------------------
+// WiFi
+// ---------------------------------------------------------------------------
+
+#define WIFI_SSID "your_wifi_name"
+#define WIFI_PASSWORD "your_wifi_password"
+
+// ---------------------------------------------------------------------------
+// EmberForge hub (brain) on your LAN
+// ---------------------------------------------------------------------------
+
+#define EMBER_HOST "192.168.1.100"
+#define EMBER_PORT 8000
+#define EMBER_BASE_URL "http://192.168.1.100:8000"
+
+// After pairing: emberforge pair → paste token here, or store in NVS later
+// #define EMBER_DEVICE_TOKEN "paste_device_token_from_pairing"
+
+// Must match a personas/*.json id (default companion: ember)
+#define EMBER_DEFAULT_PERSONA "ember"
+
+// Stable id for this unit — used as session_id for multi-turn memory on the hub
+#define EMBER_DEVICE_ID "waveshare-audio-001"
+
+// ---------------------------------------------------------------------------
+// Push-to-talk
+// ---------------------------------------------------------------------------
+
+/**
+ * Use TCA9555 EXIO10 (user key 1) for hold-to-talk.
+ * Implement with TCA9555 driver — not EMBER_BOOT_BUTTON_GPIO.
+ */
+#define EMBER_PTT_USE_TCA9555 1
+#define EMBER_PTT_EXIO_PIN EMBER_EXIO_KEY1
+
+/** Set false after bring-up if you wire an external GPIO button instead. */
+#define EMBER_PTT_ACTIVE_LOW 1
+
+// ---------------------------------------------------------------------------
+// Audio bring-up flags
+// ---------------------------------------------------------------------------
+
+/** Call TCA9555 helper to enable PA (EXIO9) before ES8311 playback. */
+#define EMBER_ENABLE_PA_ON_BOOT 1
+
+/** Dual-mic board: record left channel only for mono Whisper upload. */
+#define EMBER_MIC_USE_LEFT_CHANNEL_ONLY 1
+
+// ---------------------------------------------------------------------------
+// Optional display (Waveshare SPI LCD on FPC — not required for v0)
+// ---------------------------------------------------------------------------
+
+// #define EMBER_LCD_ENABLED 0

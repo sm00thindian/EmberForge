@@ -168,6 +168,7 @@ EmberForge/
 ├── start_ember.sh              # Interactive Mac startup
 ├── .env.example                # Local configuration template
 ├── device/README.md            # Consumer device API contract
+├── docs/HARDWARE.md            # Maker prototype board (Waveshare ESP32-S3 Audio)
 ├── docs/
 │   ├── HUB_ARCHITECTURE.md     # Hub composition, deployment profiles, storage
 │   ├── ROADMAP.md              # Maker-first product path + AWS commercial track
@@ -289,7 +290,8 @@ CI runs on **macOS** on every push to `main` (`.github/workflows/test.yml`).
 | Claude LLM provider (Grok default) | ✅ |
 | Device API `/device/v1/` + contract tests | ✅ |
 | ElevenLabs server TTS | ✅ |
-| ESP32 firmware scaffold | ✅ scaffold |
+| Waveshare ESP32-S3 Audio pin map + config | ✅ [`firmware/waveshare-esp32-s3-audio-board/`](firmware/waveshare-esp32-s3-audio-board/) |
+| ESP32 firmware scaffold (generic) | ✅ scaffold |
 
 **Phase 0:** [`docs/PHASE_0.md`](docs/PHASE_0.md)  
 **Roadmap:** [`docs/ROADMAP.md`](docs/ROADMAP.md)  

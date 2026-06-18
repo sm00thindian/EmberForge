@@ -2,9 +2,20 @@
 
 Consumer-grade EmberForge devices run **thin client** firmware. All AI logic lives on the backend.
 
-## Starter sketch
+## Recommended hardware
 
-`esp32-voice-client/` — ESP32-S3 scaffold that:
+**Waveshare ESP32-S3-AUDIO-Board** (Amazon [B0FPCNZS9M](https://www.amazon.com/dp/B0FPCNZS9M)) — pin map and config:
+
+```bash
+cd firmware/waveshare-esp32-s3-audio-board
+cp config.h.example config.h
+```
+
+See [`waveshare-esp32-s3-audio-board/README.md`](waveshare-esp32-s3-audio-board/README.md) and [`docs/HARDWARE.md`](../docs/HARDWARE.md).
+
+## Generic starter sketch
+
+`esp32-voice-client/` — ESP32-S3 scaffold (raw I2S pins) that:
 
 1. Connects to WiFi
 2. Checks `/device/v1/capabilities`

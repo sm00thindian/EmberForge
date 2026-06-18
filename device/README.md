@@ -105,9 +105,14 @@ Authorization: Bearer <token>
 
 See [`docs/M7_SECURITY.md`](../docs/M7_SECURITY.md) for TOTP admin sessions and rate limits.
 
-## Firmware scaffold
+## Firmware
 
-See `firmware/esp32-voice-client/` for a starter ESP32-S3 sketch that follows this contract.
+| Target | Path |
+|--------|------|
+| **Waveshare ESP32-S3-AUDIO-Board** (recommended) | [`firmware/waveshare-esp32-s3-audio-board/`](../firmware/waveshare-esp32-s3-audio-board/) — `pins.h`, `config.h.example` |
+| Generic ESP32-S3 scaffold | [`firmware/esp32-voice-client/`](../firmware/esp32-voice-client/) |
+
+Hardware selection and bring-up: [`docs/HARDWARE.md`](../docs/HARDWARE.md).
 
 ## Deployment targets for the backend
 

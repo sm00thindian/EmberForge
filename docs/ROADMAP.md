@@ -44,6 +44,8 @@ Work that strengthens the DIY path and prepares commercial options without forci
 
 ### Consumer device firmware
 
+**Hardware:** [Waveshare ESP32-S3-AUDIO-Board](https://www.amazon.com/dp/B0FPCNZS9M) — pin map in [`firmware/waveshare-esp32-s3-audio-board/`](../firmware/waveshare-esp32-s3-audio-board/). See [`HARDWARE.md`](HARDWARE.md).
+
 - ESP32-S3 push-to-talk loop against `/device/v1/converse`
 - NVS provisioning for hub URL + `device_token` (pairing flow from M7)
 - Boot sequence: capabilities → personas → converse
@@ -57,7 +59,7 @@ Work that strengthens the DIY path and prepares commercial options without forci
 
 ### Documentation & DX
 
-- Firmware bring-up guide tied to `device/README.md`
+- Waveshare bring-up: [`firmware/waveshare-esp32-s3-audio-board/README.md`](../firmware/waveshare-esp32-s3-audio-board/README.md) + [`HARDWARE.md`](HARDWARE.md)
 - Example hybrid LAN setup (Mac client → Docker hub on NAS/mini-PC)
 
 ---
