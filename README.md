@@ -184,7 +184,7 @@ EmberForge/
 ├── personas/                   # Persona definitions (personality + voice)
 ├── prompts/                    # System prompts + user_context.md
 ├── voices/custom/              # Recorded voice samples + consent
-├── tests/                      # pytest suite (149 tests)
+├── tests/                      # pytest suite (159 tests)
 └── phase-0-brain/
     └── mac_voice_companion.py  # Thin Mac client entry point
 ```
