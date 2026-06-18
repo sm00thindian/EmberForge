@@ -16,7 +16,7 @@ from emberforge.network import format_serve_urls, local_client_host, primary_lan
 from emberforge.observability.logging import configure_logging
 from emberforge.security.totp import provisioning_uri
 from emberforge.services.context_setup import ensure_context_location
-from emberforge.settings import Settings, get_settings
+from emberforge.settings import Settings, get_settings, is_placeholder_secret
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
@@ -57,7 +57,13 @@ def cmd_check(args: argparse.Namespace) -> int:
         lan_ip = primary_lan_ipv4()
         if lan_ip:
             print(f"  lan_setup:      http://{lan_ip}:{settings.port}/setup")
-    print(f"  xai_api_key:    {'set' if settings.resolved_api_key else 'MISSING'}")
+    if not settings.resolved_api_key:
+        api_key_status = "MISSING"
+    elif is_placeholder_secret(settings.resolved_api_key):
+        api_key_status = "PLACEHOLDER (.env.example)"
+    else:
+        api_key_status = "set"
+    print(f"  xai_api_key:    {api_key_status}")
     print(f"  llm_provider:   {settings.llm_provider}")
     print(f"  llm_model:      {settings.llm_model}")
     print(f"  llm_api_url:    {settings.llm_api_url}")

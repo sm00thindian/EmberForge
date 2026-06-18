@@ -27,21 +27,46 @@ Eventually this runs on a **consumer-grade device** (ESP32-S3) on your desk or w
 
 ## Quick Start (Mac)
 
+**Prerequisites:** Python 3.10+, macOS for the voice client (backend-only works on Linux).
+
+The fastest path from a fresh clone:
+
+```bash
+./start_ember.sh --text-only --open-setup
+```
+
+That script creates `.venv`, installs `.[dev,mac]`, picks or creates `.env`, prompts for a real `XAI_API_KEY` (placeholder values from `.env.example` are rejected), starts the backend, and opens the setup UI.
+
+**Manual setup** (same result):
+
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev,mac]"
-cp .env.example .env          # add XAI_API_KEY (and optional ElevenLabs keys)
-emberforge check              # validate config + personas
-./start_ember.sh --text-only --open-setup   # hub + browser setup UI
+cp .env.example .env          # replace your_xai_api_key_here with a real key
+emberforge check
+./start_ember.sh --text-only --open-setup
 ```
 
-Or full voice mode:
+**Smoke test** after the hub is up:
+
+1. Open [http://127.0.0.1:8000/setup](http://127.0.0.1:8000/setup) → Dashboard shows readiness.
+2. **Test Chat** tab → send “Hello” → you get a text reply (and voice if ElevenLabs or macOS say is available).
+3. `curl http://127.0.0.1:8000/health/ready` → `"status": "ok"` (or `"degraded"` if Whisper is not installed).
+
+**Full voice mode:**
 
 ```bash
 ./start_ember.sh              # interactive setup + backend + voice companion
 ```
 
-The start script creates the venv if needed, picks or creates `.env`, and prompts for missing configuration.
+**Docker hub** (no Mac voice client; ElevenLabs TTS in browser):
+
+```bash
+cp .env.example .env && docker compose up --build -d
+open http://127.0.0.1:8000/setup
+```
+
+See [`deploy/README.md`](deploy/README.md) for mounts, rebuilds, and production LAN binding.
 
 **Setup website:** [http://127.0.0.1:8000/setup](http://127.0.0.1:8000/setup) — API keys, location, context, pairing, TOTP, and test chat with voice.
 
@@ -154,7 +179,7 @@ EmberForge/
 ├── personas/                   # Persona definitions (personality + voice)
 ├── prompts/                    # System prompts + user_context.md
 ├── voices/custom/              # Recorded voice samples + consent
-├── tests/                      # pytest suite (120+ tests)
+├── tests/                      # pytest suite (149 tests)
 └── phase-0-brain/
     └── mac_voice_companion.py  # Thin Mac client entry point
 ```
@@ -228,13 +253,16 @@ Errors return structured JSON: `code`, `message`, `retryable`, `request_id`.
 
 ## Development
 
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full contributor guide.
+
 ```bash
 source .venv/bin/activate
-pytest -v
+pip install -e ".[dev,mac]"     # [mac] for voice client + sounddevice tests
+XAI_API_KEY=test-key pytest -v  # no live LLM key required
 emberforge serve --reload
 ```
 
-CI runs on push to `main` via GitHub Actions (`.github/workflows/test.yml`).
+CI runs on **macOS** on every push to `main` (`.github/workflows/test.yml`).
 
 ---
 

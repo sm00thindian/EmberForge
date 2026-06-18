@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from emberforge.paths import get_project_root
-from emberforge.settings import Settings, get_settings
+from emberforge.settings import Settings, get_settings, is_placeholder_secret
 
 
 def test_project_root_exists():
@@ -46,3 +46,18 @@ def test_validate_runtime_requires_api_key(monkeypatch):
 
 def test_validate_runtime_ok(test_settings: Settings):
     test_settings.validate_runtime()
+
+
+def test_is_placeholder_secret_detects_env_example_value():
+    assert is_placeholder_secret("your_xai_api_key_here")
+    assert not is_placeholder_secret("xai-real-key")
+    assert not is_placeholder_secret("")
+
+
+def test_validate_runtime_rejects_placeholder_api_key(monkeypatch):
+    monkeypatch.setenv("XAI_API_KEY", "your_xai_api_key_here")
+    monkeypatch.setenv("EMBERFORGE_ROOT", str(get_project_root()))
+    get_settings.cache_clear()
+    settings = Settings(_env_file=None)
+    with pytest.raises(RuntimeError, match="placeholder"):
+        settings.validate_runtime()

@@ -10,7 +10,7 @@ import httpx
 from emberforge.services.llm import llm_models_probe_url, resolve_llm_config
 from emberforge.services.personas import load_personas
 from emberforge.services.voice.registry import get_stt_provider
-from emberforge.settings import Settings
+from emberforge.settings import Settings, is_placeholder_secret
 
 
 def _component(status: str, **extra: Any) -> dict[str, Any]:
@@ -25,6 +25,12 @@ async def check_llm(settings: Settings) -> dict[str, Any]:
         return _component(
             "fail",
             message="LLM API key is not configured",
+            provider=llm.provider,
+        )
+    if is_placeholder_secret(llm.api_key):
+        return _component(
+            "fail",
+            message="LLM API key is still the .env.example placeholder",
             provider=llm.provider,
         )
 

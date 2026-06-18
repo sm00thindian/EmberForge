@@ -374,7 +374,14 @@ resolve_api_key() {
 }
 
 api_key_missing() {
-  [[ -z "${XAI_API_KEY:-}" || "$XAI_API_KEY" == "your_xai_api_key_here" ]]
+  if [[ -z "${XAI_API_KEY:-}" ]]; then
+    return 0
+  fi
+  XAI_API_KEY="$XAI_API_KEY" python -c "
+from emberforge.settings import is_placeholder_secret
+import os
+raise SystemExit(0 if is_placeholder_secret(os.environ.get('XAI_API_KEY', '')) else 1)
+" 2>/dev/null
 }
 
 ensure_api_key() {
@@ -720,10 +727,21 @@ start_voice_companion() {
   )
 }
 
+resolve_version() {
+  grep -E '^__version__' "$ROOT_DIR/emberforge/__init__.py" \
+    | sed -E 's/.*"([^"]+)".*/\1/' \
+    | head -n 1
+}
+
 print_banner() {
+  local version
+  version="$(resolve_version)"
+  if [[ -z "$version" ]]; then
+    version="unknown"
+  fi
   echo "============================================================"
   echo " EmberForge Voice Companion"
-  echo " EmberForge v0.2.0 — backend + Mac voice client"
+  echo " EmberForge v${version} — backend + Mac voice client"
   echo "============================================================"
 }
 

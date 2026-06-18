@@ -10,6 +10,20 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from emberforge.paths import get_project_root
 
+PLACEHOLDER_SECRETS = frozenset(
+    {
+        "your_xai_api_key_here",
+    }
+)
+
+
+def is_placeholder_secret(value: str) -> bool:
+    """True when a secret is still an unfilled template from .env.example."""
+    normalized = value.strip().lower()
+    if not normalized:
+        return False
+    return normalized in {item.lower() for item in PLACEHOLDER_SECRETS}
+
 
 class Settings(BaseSettings):
     """All backend configuration loaded from environment and .env."""
@@ -283,9 +297,19 @@ class Settings(BaseSettings):
                 raise RuntimeError(
                     "ANTHROPIC_API_KEY is not set. Required when EMBER_LLM_PROVIDER=claude"
                 )
+            if is_placeholder_secret(self.resolved_llm_api_key):
+                raise RuntimeError(
+                    "ANTHROPIC_API_KEY is still the .env.example placeholder. "
+                    "Replace it with a real key from https://console.anthropic.com/"
+                )
         elif not self.resolved_api_key:
             raise RuntimeError(
                 "XAI_API_KEY is not set. Export it in your shell or add it to .env"
+            )
+        elif is_placeholder_secret(self.resolved_api_key):
+            raise RuntimeError(
+                "XAI_API_KEY is still the .env.example placeholder. "
+                "Replace it with a real key from https://console.x.ai/"
             )
         if not self.personas_dir.is_dir():
             raise RuntimeError(f"Personas directory not found: {self.personas_dir}")
