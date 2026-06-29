@@ -17,7 +17,7 @@ def test_load_builtin_personas(test_settings: Settings):
 def test_ember_has_system_prompt(test_settings: Settings):
     ember = get_persona("ember", settings=test_settings)
     assert "Ember" in ember.system_prompt
-    assert ember.voice.provider == "macos_say"
+    assert ember.voice.provider == "elevenlabs"
 
 
 def test_hal_device_dict(test_settings: Settings):

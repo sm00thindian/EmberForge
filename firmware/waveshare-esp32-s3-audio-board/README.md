@@ -5,7 +5,7 @@ Official maker prototype target for EmberForge hardware bring-up.
 | Source | Link |
 |--------|------|
 | Amazon (US) | [B0FPCNZS9M](https://www.amazon.com/dp/B0FPCNZS9M) |
-| Waveshare | [ESP32-S3-AUDIO-Board](https://www.waveshare.com/esp32-s3-audio-board.htm) |
+| Waveshare | [ESP32-S3-AUDIO-Board](https://www.waveshare.com/wiki/ESP32-S3-AUDIO-Board) |
 | Wiki / demos | [waveshare.com/wiki/ESP32-S3-AUDIO-Board](https://www.waveshare.com/wiki/ESP32-S3-AUDIO-Board) |
 | Repo hardware doc | [`docs/HARDWARE.md`](../../docs/HARDWARE.md) |
 
@@ -15,63 +15,134 @@ The sticker on the retail box reads **"Esp32-s3 Audio board"** — search that n
 
 - ESP32-S3R8 (8 MB PSRAM, 16 MB flash)
 - Dual mics (ES7210) with AEC/noise reduction
-- Speaker path (ES8311 + PA) — matches hub MP3 (`voice.audio_base64`) playback work
+- Speaker path (ES8311 + PA) — plays hub MP3 (`voice.audio_base64`)
 - 3× user buttons via **TCA9555** expander (not direct GPIO)
 - 7× WS2812 RGB ring on **GPIO38**
 - Optional SPI LCD, DVP camera, TF card (skip for v0)
 
-EmberForge uses this as a **thin client**: record WAV → `POST /device/v1/converse` → play MP3 reply. Ignore Waveshare’s on-device LLM / wake-word demos for the main product path.
+EmberForge uses this as a **thin client**: record WAV → `POST /device/v1/converse` → play MP3 reply.
 
-## Files in this folder
+## Firmware in this folder
 
-| File | Purpose |
+| Path | Purpose |
 |------|---------|
-| [`pins.h`](pins.h) | Full pin / EXIO map for firmware |
-| [`config.h.example`](config.h.example) | WiFi, hub URL, device id, PTT selection — copy to `config.h` |
+| [`platformio.ini`](platformio.ini) | Build target (ESP32-S3, 16 MB flash, OPI PSRAM) |
+| [`src/main.cpp`](src/main.cpp) | Boot, VAD/PTT loop, persona + mic-mute keys |
+| [`src/ember_api.cpp`](src/ember_api.cpp) | WiFi + `/device/v1/*` HTTP client |
+| [`src/ember_audio.cpp`](src/ember_audio.cpp) | ES7210/ES8311 via `ESP32S3AISmartSpeaker` |
+| [`src/ember_status_led.cpp`](src/ember_status_led.cpp) | WS2812 ring states |
+| [`pins.h`](pins.h) | Pin / EXIO map + VAD timing |
+| [`config.h.example`](config.h.example) | WiFi + hub URL — copy to `include/config.h` |
 
-Application sketch: start from [`../esp32-voice-client/`](../esp32-voice-client/) HTTP layer + Waveshare wiki demos for ES7210/ES8311/TCA9555, or Waveshare’s `factory_01` / `mp3_play_03` ESP-IDF examples as the audio base.
+Audio drivers use [arduino-audio-tools](https://github.com/pschatzmann/arduino-audio-tools) + [arduino-audio-driver](https://github.com/pschatzmann/arduino-audio-driver) (`ESP32S3AISmartSpeaker` board definition — same silicon as this Waveshare board).
 
-## Quick bring-up
+### How to talk (`EMBER_TRIGGER_MODE` in `include/config.h`)
 
-### 1. Hardware
+| Mode | What you do |
+|------|-------------|
+| `EMBER_TRIGGER_VAD` (recommended) | Hands-free — say **"Hey Ember"** then your question |
+| `EMBER_TRIGGER_PTT_BOOT` | Hold the **BOOT** button (labeled, near USB) while speaking |
+| `EMBER_TRIGGER_PTT_KEY1` | Hold tiny **user key 1** (SMD button on board edge) |
 
-1. Connect a small speaker to the onboard header (often not included in the box).
-2. Power via USB-C. Use the **battery switch** only if you installed the optional LiPo.
-3. For first flash: hold **BOOT**, plug USB, release BOOT if the serial port is missing.
+**"Hey Ember" wake phrase** is enforced on the **hub** (Whisper STT + phrase matching), not on-device. The device listens continuously in VAD mode; only utterances that include the wake phrase (or fall within the follow-up window) get an LLM reply.
 
-### 2. Hub on your LAN
+**Examples:**
 
-```bash
-./start_ember.sh --text-only --open-setup
-# or: docker compose up -d   (EMBER_DEPLOYMENT=docker)
-emberforge pair
+- *"Hey Ember, what's the weather?"* — one utterance
+- *"Hey Ember"* … pause … *"what time is it?"* — two utterances within the hub follow-up window (default 90s)
+- Background conversation without "Hey Ember" — silently ignored (cyan LED, no reply)
+
+| Button | Action |
+|--------|--------|
+| **BOOT** (GPIO0) | PTT when `EMBER_TRIGGER_PTT_BOOT` |
+| **Key 2** (4th from USB) | Cycle persona (ring flashes **blue** twice) |
+| **Key 3** (5th from USB, rightmost user key) | Toggle mic mute (amber pulse = off) |
+
+Edge buttons left → right from USB-C:
+
+```text
+[1 RESET] [2 BOOT] [3 KEY1] [4 KEY2] [5 KEY3]
 ```
 
-Note the **device token** (shown once) and your hub IP (e.g. `192.168.1.100`).
+Waveshare prints EXIO9 / EXIO10 / EXIO11 on the schematic, but those labels do not always match which line is wired to each physical button. EmberForge names buttons by position from USB (**Key 1–3**). Mic mute is **Key 3** in docs and firmware (`getKey(1)` in the audio driver).
 
-### 3. Firmware config
+### RGB ring states
+
+| Color | Meaning |
+|-------|---------|
+| Cyan | Listening (VAD hands-free) |
+| Amber pulse | Mic muted |
+| Red | Recording speech |
+| Purple | Uploading to hub |
+| Green | Playing reply |
+| Blue flash (×2) | Persona switched |
+
+## Flash and run
+
+### 1. Hub on your LAN
+
+```bash
+cd /path/to/EmberForge
+emberforge serve --host 0.0.0.0 --port 8000
+# Or: ./start_ember.sh --non-interactive --text-only
+```
+
+Hub should be reachable at `http://<your-mac-lan-ip>:8000`. Set a **real** `XAI_API_KEY` in `.env` (placeholder values cause LLM failures).
+
+Configure ElevenLabs in `.env` for spoken device replies (`ELEVENLABS_API_KEY` + per-persona voice ids in `personas/*.json`).
+
+### 2. Configure firmware
 
 ```bash
 cd firmware/waveshare-esp32-s3-audio-board
-cp config.h.example config.h
-# Edit WIFI_*, EMBER_HOST, EMBER_BASE_URL, EMBER_DEVICE_TOKEN, EMBER_DEVICE_ID
+cp config.h.example include/config.h
 ```
 
-### 4. Validate without custom audio (serial)
+Edit `include/config.h`:
 
-1. Flash any Waveshare WiFi example → confirm 2.4 GHz WiFi (ESP32 has no 5 GHz).
-2. `GET http://<hub>:8000/device/v1/capabilities` with `Authorization: Bearer <token>`.
-3. Confirm JSON includes `"hub": { "deployment": "local", ... }`.
+- `WIFI_SSID` / `WIFI_PASSWORD` — **2.4 GHz** network only
+- `EMBER_BASE_URL` — e.g. `http://192.168.1.119:8000`
+- `EMBER_DEVICE_ID` — unique per unit (used as `session_id` on the hub)
+- `EMBER_TRIGGER_MODE` — `EMBER_TRIGGER_VAD` for hands-free + wake phrase
+- Optional: `EMBER_DEVICE_TOKEN` after `emberforge pair`
 
-### 5. Audio integration order
+### 3. Build and upload (PlatformIO)
 
-1. Init I2C (GPIO10/11) + **TCA9555** @ `0x20`.
-2. Assert **EXIO9** (PA enable) before playback.
-3. Bring up **ES7210** capture @ 16 kHz mono → WAV buffer.
-4. Hold **EXIO10** (user key 1) for PTT → upload multipart `/device/v1/converse`.
-5. Base64-decode `voice.audio_base64` → MP3 decode → **ES8311** play.
+```bash
+pip install platformio   # once
+pio run -e waveshare-audio-full -t upload
+pio device monitor
+```
 
-Recording limits: **12 s** cap, **1.5 s** trailing silence ([`device/README.md`](../../device/README.md)).
+USB port on macOS is usually `/dev/cu.usbmodem101`. If upload fails, hold **BOOT**, plug USB, release BOOT.
+
+### 4. Arduino IDE (alternative)
+
+Install libraries: **arduino-audio-tools**, **arduino-audio-driver**, **arduino-libhelix**, **ArduinoJson**, **Adafruit NeoPixel**.
+
+Copy all `src/*.cpp`, `include/*.h`, `pins.h`, and `include/config.h` into one sketch folder, or open this directory with the [PlatformIO IDE extension](https://platformio.org/install/ide/vscode).
+
+Board settings: **ESP32S3 Dev Module**, USB CDC On Boot **Enabled**, PSRAM **OPI**, Flash **16 MB**.
+
+## Boot sequence
+
+1. WiFi join
+2. `GET /device/v1/capabilities`
+3. `GET /device/v1/personas` — sets active persona (Key 2 cycles)
+4. VAD captures speech → `POST /device/v1/converse` → play `voice.audio_base64` MP3
+
+Recording limits (see [`pins.h`](pins.h)): **12 s** max, **2.2 s** trailing silence after speech ends, **0.35 s** minimum speech.
+
+## Hub tuning (`.env`)
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `EMBER_DEVICE_WAKE_PHRASE_ENABLED` | `true` | Require "Hey Ember" (or persona name) before replying |
+| `EMBER_DEVICE_WAKE_PHRASE_TIMEOUT_SECONDS` | `90` | Follow-up window after wake phrase |
+| `EMBER_DEVICE_TOOLS_ENABLED` | `false` | Skip on-demand tool round-trips for lower latency |
+| `EMBER_DEVICE_MAX_TOKENS` | `280` | Shorter device replies |
+| `ELEVENLABS_SPEED` | `0.9` | Speech rate (1.0 = normal) |
+| `ELEVENLABS_SENTENCE_PAUSE_SECONDS` | `0.4` | Pause between sentences in TTS |
 
 ## TCA9555 / EXIO (important)
 
@@ -79,32 +150,16 @@ Pins labeled **EXIO** on the schematic are on the **TCA9555** expander, not ESP3
 
 | EXIO | Typical function |
 |------|------------------|
-| EXIO9 | Power amplifier enable (enable before speaker) |
-| EXIO10 | User key 1 — **EmberForge PTT** |
-| EXIO11 | User key 2 |
-| EXIO12 | User key 3 |
-| EXIO4 | TF card CS |
+| EXIO9 | PA enable (not a button input) |
+| EXIO10 / EXIO11 / EXIO12 | User keys via TCA9555 — see `pins.h` driver indices |
 
-Community references: [ESPHome voice YAML](https://github.com/sw3Dan/waveshare-s2-audio_esphome_voice), [arduino-audio-driver board def](https://github.com/pschatzmann/arduino-audio-driver/blob/main/src/ESP32S3AISmartSpeaker.h).
+**EmberForge key map (use these names):**
 
-## I2S / codec pin summary
-
-| Signal | GPIO | Chip |
-|--------|------|------|
-| I2C SCL | 10 | ES7210, ES8311, TCA9555, PCF85063 |
-| I2C SDA | 11 | |
-| I2S MCLK | 12 | shared |
-| I2S BCLK | 13 | shared |
-| I2S LRCK | 14 | shared |
-| I2S mic data in | 15 | ES7210 ASDOUT |
-| I2S spk data out | 16 | ES8311 DSDIN |
-| RGB data | 38 | WS2812 ×7 |
-
-## Optional add-ons (later)
-
-- **1.47″ SPI LCD** — show `display.lines` from converse JSON
-- **LiPo battery** — desk companion without USB cable
-- **Camera** — not used by EmberForge v1 device API
+| EmberForge | Position from USB | Function |
+|------------|-------------------|----------|
+| Key 1 | 3rd button | (PA / not used as input) |
+| Key 2 | 4th button | Persona cycle |
+| Key 3 | 5th button | **Mic mute** |
 
 ## Related
 

@@ -34,6 +34,7 @@ class ConversationResult:
     model: str
     history_turns: int = 0
     session_id: str | None = None
+    ignored: bool = False
 
 
 def format_for_display(
@@ -78,6 +79,8 @@ async def generate_reply(
     history_store: ConversationHistoryStore | None = None,
     context_service: ContextService | None = None,
     tool_service: ToolService | None = None,
+    tools_enabled: bool | None = None,
+    max_tokens: int | None = None,
 ) -> ConversationResult:
     """Run a single persona conversation turn."""
     resolved_settings = settings or get_settings()
@@ -105,10 +108,12 @@ async def generate_reply(
         )
 
     resolved_tools = tool_service or ToolService(resolved_settings)
+    use_tools = resolved_tools.enabled if tools_enabled is None else tools_enabled
+    resolved_max_tokens = max_tokens if max_tokens is not None else resolved_settings.xai_max_tokens
 
     system_prompt = persona.system_prompt
     extras: list[str] = []
-    if resolved_tools.enabled and resolved_tools.system_instruction:
+    if use_tools and resolved_tools.system_instruction:
         extras.append(resolved_tools.system_instruction.strip())
     if session_id and context_service is not None and resolved_settings.context_enabled:
         context_block = await context_service.get_session_context(session_id)
@@ -120,7 +125,7 @@ async def generate_reply(
     messages = build_llm_messages(system_prompt, history_messages, message)
 
     with measure_phase("llm"):
-        if resolved_tools.enabled:
+        if use_tools:
             reply = await complete_with_tools(
                 settings=resolved_settings,
                 llm_config=llm_config,
@@ -128,13 +133,14 @@ async def generate_reply(
                 temperature=resolved_temperature,
                 tool_service=resolved_tools,
                 request_id=resolved_request_id,
+                max_tokens=resolved_max_tokens,
             )
         else:
             payload = {
                 "model": resolved_model,
                 "messages": messages,
                 "temperature": resolved_temperature,
-                "max_tokens": resolved_settings.xai_max_tokens,
+                "max_tokens": resolved_max_tokens,
             }
             headers = {
                 "Authorization": f"Bearer {llm_config.api_key}",

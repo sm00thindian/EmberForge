@@ -4,8 +4,8 @@
   "tagline": "Calm, mission-focused ship computer — inspired by 2001",
   "prompt_file": "prompts/personas/hal_9000.md",
   "voice": {
-    "provider": "macos_say",
-    "voice": "Daniel",
+    "provider": "elevenlabs",
+    "voice": "bAq8AI9QURijOtmeFFqT",
     "rate": 145
   },
   "temperature": 0.22,

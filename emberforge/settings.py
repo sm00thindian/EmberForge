@@ -125,6 +125,22 @@ class Settings(BaseSettings):
     device_token: str = Field(default="", validation_alias="EMBER_DEVICE_TOKEN")
     max_audio_bytes: int = Field(default=1_048_576, validation_alias="EMBER_MAX_AUDIO_BYTES")
     device_api_version: str = "1"
+    device_wake_phrase_enabled: bool = Field(
+        default=True,
+        validation_alias="EMBER_DEVICE_WAKE_PHRASE_ENABLED",
+    )
+    device_wake_phrase_timeout_seconds: float = Field(
+        default=90.0,
+        validation_alias="EMBER_DEVICE_WAKE_PHRASE_TIMEOUT_SECONDS",
+    )
+    device_tools_enabled: bool = Field(
+        default=False,
+        validation_alias="EMBER_DEVICE_TOOLS_ENABLED",
+    )
+    device_max_tokens: int = Field(
+        default=280,
+        validation_alias="EMBER_DEVICE_MAX_TOKENS",
+    )
 
     # Health checks
     health_disk_min_bytes: int = Field(

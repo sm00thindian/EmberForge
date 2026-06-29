@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -68,10 +69,26 @@ def configure_app(app: FastAPI) -> None:
     register_exception_handlers(app)
 
 
+async def _warm_hub_runtime(app: FastAPI) -> None:
+    """Prefetch slow paths so the first device turn is not paying cold-start tax."""
+    logger = logging.getLogger("emberforge")
+    converse = app.state.converse
+    settings = app.state.settings
+
+    await asyncio.to_thread(converse.warm)
+    logger.info(
+        "hub_warm complete whisper=%s context=%s device_tools=%s",
+        settings.whisper_model,
+        settings.context_enabled,
+        settings.device_tools_enabled,
+    )
+
+
 @asynccontextmanager
 async def _app_lifespan(app: FastAPI):
     logger = logging.getLogger("emberforge")
     logger.info("emberforge_startup version=%s", __version__)
+    await _warm_hub_runtime(app)
     try:
         yield
     finally:

@@ -14,7 +14,8 @@
     "llm",
     "persona_selection",
     "auth",
-    "admin_auth"
+    "admin_auth",
+    "wake_phrase"
   ],
   "properties": {
     "api_version": { "type": "string", "minLength": 1 },
@@ -66,7 +67,21 @@
         "audio_converse": { "type": "boolean" },
         "server_tts": { "type": "boolean" },
         "custom_voices": { "type": "boolean" },
-        "offline_mode": { "type": "boolean" }
+        "offline_mode": { "type": "boolean" },
+        "wake_phrase": { "type": "boolean" }
+      }
+    },
+    "wake_phrase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "follow_up_seconds", "default_phrases"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "follow_up_seconds": { "type": "number", "minimum": 0 },
+        "default_phrases": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
       }
     },
     "tts": {

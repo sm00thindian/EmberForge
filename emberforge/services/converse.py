@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import replace
+from datetime import datetime, timezone
 
 from emberforge.context import ensure_request_id, get_request_id
 from emberforge.errors import (
@@ -14,16 +16,20 @@ from emberforge.errors import (
 from emberforge.observability.timing import measure_phase
 from emberforge.services.context import ContextService
 from emberforge.services.tools import ToolService
-from emberforge.services.conversation import ConversationResult, generate_reply
+from emberforge.services.conversation import ConversationResult, generate_reply, voice_to_dict
 from emberforge.services.history import ConversationHistoryStore
+from emberforge.services.llm import resolve_llm_model
 from emberforge.services.personas import Persona, get_persona
 from emberforge.services.voice.base import STTProvider, TTSResult
+from emberforge.services.wake_phrase import WakeSessionStore, match_wake_phrase
 from emberforge.services.voice.registry import (
     get_device_tts_provider,
     get_stt_provider,
     get_tts_provider,
 )
 from emberforge.settings import Settings, get_settings
+
+logger = logging.getLogger("emberforge.converse")
 
 
 class ConverseService:
@@ -50,6 +56,7 @@ class ConverseService:
         )
         self.context = context_service or ContextService(settings)
         self.tools = tool_service or ToolService(settings)
+        self.wake_sessions = WakeSessionStore(settings.device_wake_phrase_timeout_seconds)
 
     def resolve_persona(self, persona_id: str) -> Persona:
         try:
@@ -62,6 +69,63 @@ class ConverseService:
 
     def server_tts_available(self) -> bool:
         return self.settings.server_tts_available
+
+    def warm(self) -> None:
+        """Prefetch STT model and context providers for lower first-turn latency."""
+        if self.stt.available():
+            try:
+                self.stt.warm()
+            except Exception:
+                pass
+        try:
+            self.context.warm_cache()
+        except Exception:
+            pass
+
+    def _ignored_audio_result(
+        self,
+        persona: Persona,
+        transcript: str,
+        *,
+        request_id: str,
+        session_id: str | None,
+    ) -> ConversationResult:
+        return ConversationResult(
+            request_id=request_id,
+            transcript=transcript,
+            response_text="",
+            persona_id=persona.id,
+            persona_name=persona.name,
+            voice=voice_to_dict(persona),
+            display_lines=[],
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            model=resolve_llm_model(settings=self.settings, persona=persona),
+            session_id=session_id,
+            ignored=True,
+        )
+
+    def _resolve_wake_gated_message(
+        self,
+        persona: Persona,
+        transcript: str,
+        session_id: str | None,
+    ) -> str | None:
+        if not self.settings.device_wake_phrase_enabled:
+            return transcript
+
+        armed = self.wake_sessions.is_armed(session_id or "")
+        wake_match = match_wake_phrase(transcript, persona)
+        if not armed and not wake_match.matched:
+            return None
+
+        if wake_match.matched:
+            if session_id:
+                self.wake_sessions.arm(session_id)
+            return wake_match.command
+
+        if session_id:
+            self.wake_sessions.arm(session_id)
+        return transcript
 
     async def converse_text(
         self,
@@ -125,12 +189,43 @@ class ConverseService:
         except ValueError as exc:
             message = str(exc)
             if "No speech detected" in message:
-                raise stt_no_speech(request_id=resolved_request_id) from exc
+                logger.info(
+                    "wake_ignored reason=stt_no_speech session_id=%s",
+                    session_id or "",
+                )
+                return self._ignored_audio_result(
+                    persona,
+                    "",
+                    request_id=resolved_request_id,
+                    session_id=session_id,
+                )
             raise audio_invalid(message, request_id=resolved_request_id) from exc
+
+        message = self._resolve_wake_gated_message(persona, transcript, session_id)
+        if message is None:
+            logger.info(
+                "wake_ignored transcript=%r session_id=%s armed=%s",
+                transcript,
+                session_id or "",
+                self.wake_sessions.is_armed(session_id or ""),
+            )
+            return self._ignored_audio_result(
+                persona,
+                transcript,
+                request_id=resolved_request_id,
+                session_id=session_id,
+            )
+        if not message.strip():
+            return self._ignored_audio_result(
+                persona,
+                transcript,
+                request_id=resolved_request_id,
+                session_id=session_id,
+            )
 
         result = await generate_reply(
             persona,
-            transcript,
+            message,
             settings=self.settings,
             model=model,
             request_id=resolved_request_id,
@@ -139,13 +234,18 @@ class ConverseService:
             history_store=self.history,
             context_service=self.context,
             tool_service=self.tools,
+            tools_enabled=self.settings.device_tools_enabled,
+            max_tokens=self.settings.device_max_tokens,
         )
-        return await self._enrich_with_tts(
+        enriched = await self._enrich_with_tts(
             persona,
             result,
             synthesize_audio=synthesize_audio,
             play_audio=play_audio,
         )
+        if session_id:
+            self.wake_sessions.arm(session_id)
+        return enriched
 
     async def _enrich_with_tts(
         self,

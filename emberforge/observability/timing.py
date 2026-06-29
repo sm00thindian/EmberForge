@@ -55,13 +55,12 @@ def measure_phase(phase: str) -> Iterator[None]:
     finally:
         elapsed_ms = (time.perf_counter() - start) * 1000
         timing = _timing_var.get()
-        if timing is None:
-            return
-        if phase == "stt":
-            timing.stt_ms = (timing.stt_ms or 0) + elapsed_ms
-        elif phase == "llm":
-            timing.llm_ms = (timing.llm_ms or 0) + elapsed_ms
-        elif phase == "tts":
-            timing.tts_ms = (timing.tts_ms or 0) + elapsed_ms
-        else:
-            timing.extra[phase] = timing.extra.get(phase, 0) + elapsed_ms
+        if timing is not None:
+            if phase == "stt":
+                timing.stt_ms = (timing.stt_ms or 0) + elapsed_ms
+            elif phase == "llm":
+                timing.llm_ms = (timing.llm_ms or 0) + elapsed_ms
+            elif phase == "tts":
+                timing.tts_ms = (timing.tts_ms or 0) + elapsed_ms
+            else:
+                timing.extra[phase] = timing.extra.get(phase, 0) + elapsed_ms

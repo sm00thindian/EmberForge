@@ -151,6 +151,12 @@ class ContextService:
         with self._lock:
             self._session_snapshots.clear()
 
+    def warm_cache(self) -> None:
+        """Prefetch provider data so the first live session avoids cold-start fetches."""
+        if not self.enabled:
+            return
+        self._build_snapshot()
+
     async def get_session_context(self, session_id: str) -> str:
         if not self.enabled or not session_id:
             return ""

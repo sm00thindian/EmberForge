@@ -13,6 +13,8 @@ from emberforge.models.schemas import DevicePairConfirmRequest, DeviceTextReques
 from emberforge.security.runtime import get_security_state
 from emberforge.services.conversation import ConversationResult
 from emberforge.services.converse import ConverseService
+from emberforge.services.personas import get_persona
+from emberforge.services.wake_phrase import wake_phrases_for_persona
 from emberforge.hub.runtime import build_hub
 from emberforge.hub.tenancy import scoped_session_id
 from emberforge.settings import Settings
@@ -40,6 +42,8 @@ def conversation_payload(result: ConversationResult) -> dict:
         payload["session_id"] = result.session_id
     if result.history_turns:
         payload["history_turns"] = result.history_turns
+    if result.ignored:
+        payload["ignored"] = True
     return payload
 
 
@@ -73,6 +77,14 @@ def create_device_routers(
                 "server_tts": converse.server_tts_available(),
                 "custom_voices": converse.server_tts_available(),
                 "offline_mode": False,
+                "wake_phrase": settings.device_wake_phrase_enabled,
+            },
+            "wake_phrase": {
+                "enabled": settings.device_wake_phrase_enabled,
+                "follow_up_seconds": settings.device_wake_phrase_timeout_seconds,
+                "default_phrases": wake_phrases_for_persona(
+                    get_persona(settings.default_persona_id, converse.personas, settings)
+                ),
             },
             "tts": {
                 "formats": ["mp3"] if converse.server_tts_available() else [],

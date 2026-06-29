@@ -25,6 +25,7 @@ async def complete_with_tools(
     temperature: float,
     tool_service: ToolService,
     request_id: str,
+    max_tokens: int | None = None,
 ) -> str:
     """
     Run chat completions with tool auto-invocation until the model returns text
@@ -37,6 +38,7 @@ async def complete_with_tools(
     tools = tool_service.definitions
     working_messages = list(messages)
     max_rounds = settings.tools_max_rounds
+    resolved_max_tokens = max_tokens if max_tokens is not None else settings.xai_max_tokens
 
     async with httpx.AsyncClient(timeout=settings.xai_timeout_seconds) as client:
         for _ in range(max_rounds):
@@ -44,7 +46,7 @@ async def complete_with_tools(
                 "model": llm_config.model,
                 "messages": working_messages,
                 "temperature": temperature,
-                "max_tokens": settings.xai_max_tokens,
+                "max_tokens": resolved_max_tokens,
             }
             if tools:
                 payload["tools"] = tools

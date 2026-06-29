@@ -69,7 +69,8 @@ See [`docs/M7_SECURITY.md`](M7_SECURITY.md).
 ## What we are not building yet
 
 - Custom PCB / enclosure (prototype on Waveshare board first)
-- On-device wake word or edge LLM (hub-side Whisper + LLM only)
+- On-device wake word (hub-side "Hey Ember" via Whisper + phrase matching works today)
+- Edge LLM on device (hub-side Whisper + LLM only)
 - 5 GHz WiFi (ESP32 is 2.4 GHz only)
 
 ## Roadmap

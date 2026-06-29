@@ -66,14 +66,23 @@
 /** TF card chip select (active level depends on driver; see Waveshare demos). */
 #define EMBER_EXIO_SD_CS 4
 
-/** User button 1 — recommended EmberForge push-to-talk (active low). */
+/** audio-driver user keys: getKey(1..3) → EXIO10 / EXIO11 / EXIO12. */
 #define EMBER_EXIO_KEY1 10
-
-/** User button 2 */
 #define EMBER_EXIO_KEY2 11
-
-/** User button 3 */
 #define EMBER_EXIO_KEY3 12
+
+/**
+ * Edge buttons left → right from USB-C (Waveshare diagram):
+ *   [1 RESET] [2 BOOT] [3 KEY1 EXIO9] [4 KEY2 EXIO10] [5 KEY3 EXIO11]
+ *
+ * Silkscreen labels do not always match TCA9555 wiring — trust firmware behavior.
+ * EmberForge docs call the mic-mute control "Key 3" (5th button / rightmost user key).
+ * In code that is audio-driver getKey(1) → EXIO10 (not EXIO11).
+ * Persona cycle: getKey(2) → EXIO11. EXIO9 is PA enable, not a button input.
+ */
+#define EMBER_DRIVER_KEY_PTT 1
+#define EMBER_DRIVER_KEY_MIC_MUTE 1
+#define EMBER_DRIVER_KEY_PERSONA 2
 
 /** LCD reset (when using Waveshare SPI display FPC). */
 #define EMBER_EXIO_LCD_RST 0
@@ -111,5 +120,5 @@
 // ---------------------------------------------------------------------------
 
 #define EMBER_RECORD_MAX_SECONDS 12
-#define EMBER_RECORD_TRAILING_SILENCE_SECONDS 1.5f
-#define EMBER_RECORD_MIN_SPEECH_SECONDS 0.4f
+#define EMBER_RECORD_TRAILING_SILENCE_SECONDS 2.2f
+#define EMBER_RECORD_MIN_SPEECH_SECONDS 0.35f

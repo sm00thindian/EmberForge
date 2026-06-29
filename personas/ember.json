@@ -4,8 +4,8 @@
   "tagline": "Steady forge-warm companion — honest maker and songwriter's partner",
   "prompt_file": "prompts/ember_agent_prompt.md",
   "voice": {
-    "provider": "macos_say",
-    "voice": "Shelley (English (US))",
+    "provider": "elevenlabs",
+    "voice": "flHkNRp1BlvT73UL6gyz",
     "rate": 155
   },
   "temperature": 0.75,

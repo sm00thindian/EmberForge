@@ -45,8 +45,8 @@ async def test_converse_text(monkeypatch, converse: ConverseService):
     result = await converse.converse_text("ember", "Hi Ember")
     assert result.transcript == "Hi Ember"
     assert result.response_text == "Hello back"
-    assert result.voice["provider"] == "macos_say"
-    assert result.voice["voice"] == "Shelley (English (US))"
+    assert result.voice["provider"] == "elevenlabs"
+    assert result.voice["voice"] == "flHkNRp1BlvT73UL6gyz"
 
 
 @pytest.mark.asyncio

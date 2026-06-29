@@ -52,12 +52,19 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
         timing_payload = timing.to_dict() if timing else {}
 
         logger = logging.getLogger("emberforge.http")
+        timing_suffix = ""
+        if timing_payload and "/converse" in request.url.path:
+            timing_suffix = " " + " ".join(
+                f"{key.replace('_ms', '')}={value}ms" for key, value in sorted(timing_payload.items())
+            )
+
         logger.info(
-            "%s %s %s %.2fms",
+            "%s %s %s %.2fms%s",
             request.method,
             request.url.path,
             response.status_code,
             duration_ms,
+            timing_suffix,
             extra={
                 "event": "http_request",
                 "request_id": get_request_id(),

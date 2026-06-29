@@ -70,11 +70,16 @@ class WhisperSTT:
 
     def _transcribe(self, audio: np.ndarray) -> str:
         model = self._load_model()
-        segments, _ = model.transcribe(audio, language="en", vad_filter=True, beam_size=5)
+        # Device clips are short; Whisper's VAD often strips entire "hey ember" utterances.
+        segments, _ = model.transcribe(audio, language="en", vad_filter=False, beam_size=1)
         text = " ".join(segment.text.strip() for segment in segments).strip()
         if not text:
             raise ValueError("No speech detected in audio")
         return text
+
+    def warm(self) -> None:
+        """Load the Whisper model into memory."""
+        self._load_model()
 
     def transcribe_wav(self, audio_bytes: bytes) -> str:
         audio, sample_rate = self._read_wav(audio_bytes)

@@ -21,5 +21,5 @@ def test_format_for_display_empty():
 def test_voice_to_dict_includes_playback_placeholders(test_settings: Settings):
     ember = get_persona("ember", settings=test_settings)
     voice = voice_to_dict(ember)
-    assert voice["provider"] == "macos_say"
+    assert voice["provider"] == "elevenlabs"
     assert voice["audio_base64"] is None

@@ -9,8 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Waveshare ESP32-S3-AUDIO-Board pin map and `config.h.example` ([`firmware/waveshare-esp32-s3-audio-board/`](firmware/waveshare-esp32-s3-audio-board/))
+- **Waveshare ESP32-S3-AUDIO-Board firmware** — PlatformIO thin client with ES7210/ES8311 audio, VAD hands-free, WS2812 status ring, persona + mic-mute keys ([`firmware/waveshare-esp32-s3-audio-board/`](firmware/waveshare-esp32-s3-audio-board/))
+- **Hub-side wake phrase** — "Hey Ember" gating for device audio with 90s follow-up window (`emberforge/services/wake_phrase.py`)
+- Device hub settings: `EMBER_DEVICE_WAKE_PHRASE_*`, `EMBER_DEVICE_TOOLS_ENABLED`, `EMBER_DEVICE_MAX_TOKENS`
+- Hub startup warm-cache for Whisper model and session context
+- `wake_phrase` block in `GET /device/v1/capabilities` (schema + contract tests)
 - Maker hardware guide [`docs/HARDWARE.md`](docs/HARDWARE.md) (Amazon B0FPCNZS9M)
+- Tests: [`tests/test_wake_phrase.py`](tests/test_wake_phrase.py)
+
+### Changed
+
+- Personas `ember` and `hal_9000` use per-persona ElevenLabs voice ids
+- Device audio path disables on-demand LLM tools by default (lower latency; weather still in session context)
+- Whisper STT: `vad_filter=false` and `beam_size=1` for short device clips
+- ElevenLabs TTS defaults documented (`ELEVENLABS_SPEED`, `ELEVENLABS_SENTENCE_PAUSE_SECONDS`)
+- Fixed `measure_phase` swallowing exceptions when request timing context is unset
+
+### Fixed
+
+- Wake phrase partial match ("hey" arms session), embedded phrase detection, silent ignore on no-speech STT
 
 ## [1.1.0] - 2026-06-18
 

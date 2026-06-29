@@ -2,8 +2,8 @@
 /**
  * EmberForge thin-client config — Waveshare ESP32-S3-AUDIO-Board
  *
- * Copy to config.h and fill in your LAN hub details:
- *   cp config.h.example config.h
+ * Copy to include/config.h and fill in your LAN hub details:
+ *   cp config.h.example include/config.h
  *
  * Amazon listing (same board): https://www.amazon.com/dp/B0FPCNZS9M
  * Waveshare wiki: https://www.waveshare.com/wiki/ESP32-S3-AUDIO-Board
@@ -15,6 +15,7 @@
 // WiFi
 // ---------------------------------------------------------------------------
 
+// Copy to include/config.h — every setting MUST use #define (hash required).
 #define WIFI_SSID "your_wifi_name"
 #define WIFI_PASSWORD "your_wifi_password"
 
@@ -22,9 +23,9 @@
 // EmberForge hub (brain) on your LAN
 // ---------------------------------------------------------------------------
 
-#define EMBER_HOST "192.168.1.100"
+#define EMBER_HOST "192.168.1.119"
 #define EMBER_PORT 8000
-#define EMBER_BASE_URL "http://192.168.1.100:8000"
+#define EMBER_BASE_URL "http://192.168.1.119:8000"
 
 // After pairing: emberforge pair → paste token here, or store in NVS later
 // #define EMBER_DEVICE_TOKEN "paste_device_token_from_pairing"
@@ -36,17 +37,20 @@
 #define EMBER_DEVICE_ID "waveshare-audio-001"
 
 // ---------------------------------------------------------------------------
-// Push-to-talk
+// How to start a conversation
 // ---------------------------------------------------------------------------
 
-/**
- * Use TCA9555 EXIO10 (user key 1) for hold-to-talk.
- * Implement with TCA9555 driver — not EMBER_BOOT_BUTTON_GPIO.
- */
+/** Hold the labeled BOOT button (GPIO0, near USB) while speaking. */
+#define EMBER_TRIGGER_PTT_BOOT 0
+/** Hold user key 1 on the TCA9555 expander (tiny SMD button — easy to miss). */
+#define EMBER_TRIGGER_PTT_KEY1 1
+/** No button: hands-free VAD + hub-side "Hey Ember" wake phrase. */
+#define EMBER_TRIGGER_VAD 2
+/** Recommended: VAD hands-free with hub wake phrase. Use PTT_BOOT if mic is noisy. */
+#define EMBER_TRIGGER_MODE EMBER_TRIGGER_VAD
+
 #define EMBER_PTT_USE_TCA9555 1
 #define EMBER_PTT_EXIO_PIN EMBER_EXIO_KEY1
-
-/** Set false after bring-up if you wire an external GPIO button instead. */
 #define EMBER_PTT_ACTIVE_LOW 1
 
 // ---------------------------------------------------------------------------
@@ -58,6 +62,12 @@
 
 /** Dual-mic board: record left channel only for mono Whisper upload. */
 #define EMBER_MIC_USE_LEFT_CHANNEL_ONLY 1
+
+/**
+ * Key 3 (5th button from USB, rightmost user key) toggles mic mute.
+ * Key 2 (4th from USB) cycles persona. See pins.h — silkscreen EXIO labels may
+ * not match the driver wiring; EmberForge uses audio-driver getKey() indices.
+ */
 
 // ---------------------------------------------------------------------------
 // Optional display (Waveshare SPI LCD on FPC — not required for v0)

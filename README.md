@@ -104,8 +104,14 @@ Copy `.env.example` to `.env` and set at minimum:
 | `EMBER_CONTEXT_ENABLED` | No | Inject weather, headlines, and profile once per session |
 | `EMBER_RSS_FEEDS` | No | Comma-separated RSS URLs for headlines and news tools |
 | `EMBER_TOOLS_ENABLED` | No | Let the LLM call weather/news tools on demand (default `true`) |
+| `EMBER_DEVICE_WAKE_PHRASE_ENABLED` | No | Require "Hey Ember" on device audio (default `true`) |
+| `EMBER_DEVICE_WAKE_PHRASE_TIMEOUT_SECONDS` | No | Follow-up window after wake phrase (default `90`) |
+| `EMBER_DEVICE_TOOLS_ENABLED` | No | On-demand tools for device audio (default `false` for latency) |
+| `EMBER_DEVICE_MAX_TOKENS` | No | Max tokens for device replies (default `280`) |
+| `ELEVENLABS_SPEED` | No | ElevenLabs speech rate — `1.0` is normal (default `0.9`) |
+| `ELEVENLABS_SENTENCE_PAUSE_SECONDS` | No | Pause between sentences in device TTS (default `0.4`) |
 
-\* `XAI_API_KEY` required when provider is `grok` (default).  
+\* `XAI_API_KEY` required when provider is `grok` (default). Use a **real** key in `.env` — placeholder values fail at runtime.  
 \** `ANTHROPIC_API_KEY` required when provider is `claude`.
 
 Switch to Claude in `.env` or the setup UI:
@@ -156,7 +162,11 @@ Open **`/setup`** after starting the backend:
 
 Consumer devices **never hold API keys or persona prompts**. They upload audio, receive a structured response (text + MP3 when ElevenLabs is configured), and play it back.
 
-See [`device/README.md`](device/README.md) for the full contract and [`firmware/esp32-voice-client/`](firmware/esp32-voice-client/) for the starter sketch.
+See [`device/README.md`](device/README.md) for the full contract.
+
+**Waveshare ESP32-S3 Audio Board** (working prototype): [`firmware/waveshare-esp32-s3-audio-board/`](firmware/waveshare-esp32-s3-audio-board/) — VAD hands-free, hub-side "Hey Ember" wake phrase, ElevenLabs playback, persona + mic-mute keys.
+
+Generic scaffold: [`firmware/esp32-voice-client/`](firmware/esp32-voice-client/).
 
 ---
 
@@ -168,6 +178,9 @@ EmberForge/
 ├── start_ember.sh              # Interactive Mac startup
 ├── .env.example                # Local configuration template
 ├── device/README.md            # Consumer device API contract
+├── firmware/
+│   ├── waveshare-esp32-s3-audio-board/  # Working Waveshare thin client (PlatformIO)
+│   └── esp32-voice-client/              # Generic scaffold
 ├── docs/HARDWARE.md            # Maker prototype board (Waveshare ESP32-S3 Audio)
 ├── docs/
 │   ├── HUB_ARCHITECTURE.md     # Hub composition, deployment profiles, storage
@@ -185,7 +198,7 @@ EmberForge/
 ├── personas/                   # Persona definitions (personality + voice)
 ├── prompts/                    # System prompts + user_context.md
 ├── voices/custom/              # Recorded voice samples + consent
-├── tests/                      # pytest suite (159 tests)
+├── tests/                      # pytest suite
 └── phase-0-brain/
     └── mac_voice_companion.py  # Thin Mac client entry point
 ```
@@ -196,10 +209,12 @@ EmberForge/
 
 Personas are JSON files in `personas/`. Each defines a system prompt, voice profile, and temperature.
 
-| ID | Name | Voice (Mac) |
-|----|------|-------------|
-| `ember` | Ember | Shelley (English US), rate 155 |
-| `hal_9000` | HAL | Daniel (UK), rate 145 |
+| ID | Name | Voice (device / ElevenLabs) |
+|----|------|----------------------------|
+| `ember` | Ember | Custom ElevenLabs voice |
+| `hal_9000` | HAL | Custom ElevenLabs voice |
+
+Mac voice client still supports `macos_say` or ElevenLabs via `./start_ember.sh`.
 
 Add a persona: write a prompt in `prompts/`, create `personas/your_persona.json`, restart the backend.
 
@@ -290,7 +305,8 @@ CI runs on **macOS** on every push to `main` (`.github/workflows/test.yml`).
 | Claude LLM provider (Grok default) | ✅ |
 | Device API `/device/v1/` + contract tests | ✅ |
 | ElevenLabs server TTS | ✅ |
-| Waveshare ESP32-S3 Audio pin map + config | ✅ [`firmware/waveshare-esp32-s3-audio-board/`](firmware/waveshare-esp32-s3-audio-board/) |
+| Waveshare ESP32-S3 Audio firmware | ✅ VAD, wake phrase, ES7210/ES8311, WS2812 [`firmware/waveshare-esp32-s3-audio-board/`](firmware/waveshare-esp32-s3-audio-board/) |
+| Hub wake phrase gating ("Hey Ember") | ✅ |
 | ESP32 firmware scaffold (generic) | ✅ scaffold |
 
 **Phase 0:** [`docs/PHASE_0.md`](docs/PHASE_0.md)  

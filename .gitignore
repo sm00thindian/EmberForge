@@ -13,4 +13,6 @@ voices/custom/*/*.wav
 voices/custom/*/*.mp3
 !voices/custom/_template/
 firmware/**/config.h
+firmware/**/.pio/
+ki.env
 .emberforge/
